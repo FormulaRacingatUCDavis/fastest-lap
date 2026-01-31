@@ -771,27 +771,27 @@ jobs:
     if: always()
     
     steps:
-    - uses: geekyeggo/delete-artifact@v1
+    - uses: actions/delete-artifact@v4
       continue-on-error: true
       with:
         name: database_release
 
-    - uses: geekyeggo/delete-artifact@v1
+    - uses: actions/delete-artifact@v4
       continue-on-error: true
       with:
         name: libraries_release
 
-    - uses: geekyeggo/delete-artifact@v1
+    - uses: actions/delete-artifact@v4
       continue-on-error: true
       with:
         name: tests_release
 
-    - uses: geekyeggo/delete-artifact@v1
+    - uses: actions/delete-artifact@v4
       continue-on-error: true
       with:
         name: applications_test_release_data
 
-    - uses: geekyeggo/delete-artifact@v1
+    - uses: actions/delete-artifact@v4
       continue-on-error: true
       with:
         name: vehicles_test_release_data
@@ -804,32 +804,32 @@ jobs:
     if: always()
     
     steps:
-    - uses: geekyeggo/delete-artifact@v1
+    - uses: actions/delete-artifact@v4
       continue-on-error: true
       with:
         name: database_debug
 
-    - uses: geekyeggo/delete-artifact@v1
+    - uses: actions/delete-artifact@v4
       continue-on-error: true
       with:
         name: libraries_debug
 
-    - uses: geekyeggo/delete-artifact@v1
+    - uses: actions/delete-artifact@v4
       continue-on-error: true
       with:
         name: tests_debug
 
-    - uses: geekyeggo/delete-artifact@v1
+    - uses: actions/delete-artifact@v4
       continue-on-error: true
       with:
         name: applications_test_debug_data
 
-    - uses: geekyeggo/delete-artifact@v1
+    - uses: actions/delete-artifact@v4
       continue-on-error: true
       with:
         name: vehicles_test_debug_data
 
-    - uses: geekyeggo/delete-artifact@v1
+    - uses: actions/delete-artifact@v4
       continue-on-error: true
       with:
         name: valgrind_utils
