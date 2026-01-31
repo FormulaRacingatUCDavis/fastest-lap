@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Install lcov
       run: sudo apt-get install -y lcov
@@ -53,7 +53,7 @@ jobs:
       shell: bash
       run: cp all-merged.info coverage.info
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: coverage_artifacts
         path: ${{runner.workspace}}/build/ccov
@@ -66,7 +66,7 @@ jobs:
     needs: [run]
     
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: coverage_artifacts
         path: ${{runner.workspace}}

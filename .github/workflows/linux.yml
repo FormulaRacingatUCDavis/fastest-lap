@@ -19,7 +19,7 @@ jobs:
     # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Create Build Environment
       # Some projects don't allow in-source building, so create a separate build directory
@@ -42,25 +42,25 @@ jobs:
       # Execute the build.  You can specify a specific target with "--target <NAME>" 
       run: cmake --build . --config $BUILD_RELEASE
       
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: tests_release
         path: ${{runner.workspace}}/build/src/test/**/*_test
         retention-days: 1 
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: applications_test_release_data
         path: src/test/applications/data/
         retention-days: 1 
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: vehicles_test_release_data
         path: src/test/vehicles/data/
         retention-days: 1 
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: database_release
         path: database
@@ -71,7 +71,7 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       run: cp -rf ${{runner.workspace}}/build/lib/* ${{runner.workspace}}/build/thirdparty/lib
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: libraries_release
         path: ${{runner.workspace}}/build/thirdparty/lib/*
@@ -85,7 +85,7 @@ jobs:
     # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
 
     - name: Create Build Environment
@@ -109,25 +109,25 @@ jobs:
       # Execute the build.  You can specify a specific target with "--target <NAME>" 
       run: cmake --build . --config $BUILD_DEBUG
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: tests_debug
         path: ${{runner.workspace}}/build/src/test/**/*_test
         retention-days: 1 
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: applications_test_debug_data
         path: src/test/applications/data/
         retention-days: 1 
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: vehicles_test_debug_data
         path: src/test/vehicles/data/
         retention-days: 1 
           
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: database_debug
         path: database
@@ -138,7 +138,7 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       run: cp -rf ${{runner.workspace}}/build/lib/* ${{runner.workspace}}/build/thirdparty/lib
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: libraries_debug
         path: ${{runner.workspace}}/build/thirdparty/lib/*
@@ -150,14 +150,14 @@ jobs:
     
     needs: [build_debug]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: cp valgrindtest.sh
       working-directory: ${{runner.workspace}}
       shell: bash
       run: cp ${{runner.workspace}}/fastest-lap/.github/workflows/valgrindtest.sh ${{runner.workspace}}/fastest-lap/src/scripts
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: valgrind_utils
         path: ${{runner.workspace}}/fastest-lap/src/scripts/*
@@ -174,17 +174,17 @@ jobs:
     needs: [build_release]
     
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: database_release
         path: ${{runner.workspace}}/database
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: tests_release
         path: ${{runner.workspace}}
       
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: libraries_release
         path: ${{runner.workspace}}
@@ -207,17 +207,17 @@ jobs:
     needs: [build_debug]
     
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: database_debug
         path: ${{runner.workspace}}/database
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: tests_debug
         path: ${{runner.workspace}}
       
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: libraries_debug
         path: ${{runner.workspace}}
@@ -240,22 +240,22 @@ jobs:
     needs: [valgrind]
     
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: database_debug
         path: ${{runner.workspace}}/database
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: valgrind_utils
         path: ${{runner.workspace}}
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: tests_debug
         path: ${{runner.workspace}}
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: libraries_debug
         path: ${{runner.workspace}}
@@ -288,17 +288,17 @@ jobs:
     needs: [build_release]
     
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: database_release
         path: ${{runner.workspace}}/database
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: tests_release
         path: ${{runner.workspace}}
       
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: libraries_release
         path: ${{runner.workspace}}
@@ -321,17 +321,17 @@ jobs:
     needs: [build_debug]
     
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: database_debug
         path: ${{runner.workspace}}/database
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: tests_debug
         path: ${{runner.workspace}}
       
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: libraries_debug
         path: ${{runner.workspace}}
@@ -354,22 +354,22 @@ jobs:
     needs: [valgrind]
     
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: database_debug
         path: ${{runner.workspace}}/database
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: valgrind_utils
         path: ${{runner.workspace}}
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: tests_debug
         path: ${{runner.workspace}}
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: libraries_debug
         path: ${{runner.workspace}}
@@ -402,22 +402,22 @@ jobs:
     needs: [build_release]
     
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: database_release
         path: ${{runner.workspace}}/database
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: vehicles_test_release_data
         path: ${{runner.workspace}}/data
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: tests_release
         path: ${{runner.workspace}}
       
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: libraries_release
         path: ${{runner.workspace}}
@@ -440,22 +440,22 @@ jobs:
     needs: [build_debug]
     
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: database_debug
         path: ${{runner.workspace}}/database
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: vehicles_test_debug_data
         path: ${{runner.workspace}}/data
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: tests_debug
         path: ${{runner.workspace}}
       
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: libraries_debug
         path: ${{runner.workspace}}
@@ -478,27 +478,27 @@ jobs:
     needs: [valgrind]
     
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: database_debug
         path: ${{runner.workspace}}/database
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: vehicles_test_debug_data
         path: ${{runner.workspace}}/data
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: valgrind_utils
         path: ${{runner.workspace}}
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: tests_debug
         path: ${{runner.workspace}}
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: libraries_debug
         path: ${{runner.workspace}}
@@ -531,22 +531,22 @@ jobs:
     needs: [build_release]
     
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: database_release
         path: ${{runner.workspace}}/database
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: applications_test_release_data
         path: ${{runner.workspace}}/data
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: tests_release
         path: ${{runner.workspace}}
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: libraries_release
         path: ${{runner.workspace}}
@@ -569,22 +569,22 @@ jobs:
     needs: [build_debug]
     
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: database_debug
         path: ${{runner.workspace}}/database
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: applications_test_debug_data
         path: ${{runner.workspace}}/data
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: tests_debug
         path: ${{runner.workspace}}
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: libraries_debug
         path: ${{runner.workspace}}
@@ -607,27 +607,27 @@ jobs:
     needs: [valgrind]
     
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: database_debug
         path: ${{runner.workspace}}/database
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: valgrind_utils
         path: ${{runner.workspace}}
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: applications_test_debug_data
         path: ${{runner.workspace}}/data
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: tests_debug
         path: ${{runner.workspace}}
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: libraries_debug
         path: ${{runner.workspace}}
@@ -660,17 +660,17 @@ jobs:
     needs: [build_release]
     
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: database_release
         path: ${{runner.workspace}}/database
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: tests_release
         path: ${{runner.workspace}}
       
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: libraries_release
         path: ${{runner.workspace}}
@@ -693,17 +693,17 @@ jobs:
     needs: [build_debug]
     
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: database_debug
         path: ${{runner.workspace}}/database
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: tests_debug
         path: ${{runner.workspace}}
       
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: libraries_debug
         path: ${{runner.workspace}}
@@ -726,22 +726,22 @@ jobs:
     needs: [valgrind]
     
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: database_debug
         path: ${{runner.workspace}}/database
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: valgrind_utils
         path: ${{runner.workspace}}
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: tests_debug
         path: ${{runner.workspace}}
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4
       with:
         name: libraries_debug
         path: ${{runner.workspace}}
