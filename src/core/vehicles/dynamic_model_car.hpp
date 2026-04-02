@@ -4,6 +4,8 @@
 #include "lion/math/matrix_extensions.h"
 #include "lion/math/euler_angles.h"
 
+#include <utility>
+
 template<typename Timeseries_t, typename Chassis_t, typename RoadModel_t>
 inline auto Dynamic_model_car<Timeseries_t,Chassis_t,RoadModel_t>::transform_states_to_inputs(const std::array<Timeseries_t, number_of_states>& states, 
     const std::array<Timeseries_t, number_of_controls>& controls ) const -> std::array<Timeseries_t,number_of_inputs>

@@ -31,4 +31,13 @@ message(STATUS "Configuration of fastest-lap")
 
 
 find_package(GTest PATHS ${CMAKE_BINARY_DIR}/thirdparty REQUIRED)
-find_package(lion PATHS ${CMAKE_BINARY_DIR}/thirdparty/lib/cmake/lion HINTS ${CMAKE_BINARY_DIR}/thirdparty/lib/cmake/lion NO_DEFAULT_PATH REQUIRED)
+find_package(lion
+    PATHS
+        ${CMAKE_BINARY_DIR}/thirdparty/lib/cmake/lion
+        ${CMAKE_BINARY_DIR}/lion/build/generated
+        ${CMAKE_BINARY_DIR}/lion/build
+    HINTS
+        ${CMAKE_BINARY_DIR}/thirdparty/lib/cmake/lion
+        ${CMAKE_BINARY_DIR}/lion/build/generated
+        ${CMAKE_BINARY_DIR}/lion/build
+    NO_DEFAULT_PATH REQUIRED)
