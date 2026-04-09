@@ -27,9 +27,22 @@ if ( ${CONSTRUCT_LIBFASTESTLAPC} )
     
     if (NOT MSYS)
     	if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    		set(LFASTESTLAPC_ADDITIONAL_FLAGS -static-libstdc++ -static-libgcc)
+            # Only link statically against libstdc++ if the static archive is available.
+            # GCC 15+ on Fedora/Nobara ships libstdc++.so only; attempting -static-libstdc++
+            # there causes a link failure.
+            execute_process(
+                COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libstdc++.a
+                OUTPUT_VARIABLE LIBSTDCXX_STATIC_PATH
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
+            if(EXISTS "${LIBSTDCXX_STATIC_PATH}")
+    	        set(LFASTESTLAPC_ADDITIONAL_FLAGS -static-libstdc++ -static-libgcc)
+            else()
+                message(STATUS "libstdc++.a not found (${LIBSTDCXX_STATIC_PATH}); linking dynamically against libstdc++")
+            endif()
     	endif()
     endif()
+
     
     target_link_libraries(fastestlapc LINK_PUBLIC lion::lion ${LFASTESTLAPC_ADDITIONAL_FLAGS})
     

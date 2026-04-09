@@ -2,6 +2,7 @@
 #define AXLE_CAR_6DOF_HPP
 
 #include "src/core/foundation/fastest_lap_exception.h"
+#include "src/core/actuators/electric_motor.h"
 
 template<typename Timeseries_t, typename Tire_left_t, typename Tire_right_t, template<size_t,size_t> typename Axle_mode, size_t state_start, size_t control_start>
 Axle_car_6dof<Timeseries_t,Tire_left_t,Tire_right_t,Axle_mode,state_start,control_start>::Axle_car_6dof(const std::string& name,
@@ -21,6 +22,8 @@ Axle_car_6dof<Timeseries_t,Tire_left_t,Tire_right_t,Axle_mode,state_start,contro
   _T_ax(0.0),
   _domega(0.0),
   _engine(),
+  _electric_motor(),
+  _powertrain_type(Powertrain_type::COMBUSTION),
   _brakes(),
   _delta(0.0),
   _beta({0.0,0.0})
@@ -60,6 +63,8 @@ Axle_car_6dof<Timeseries_t,Tire_left_t,Tire_right_t,Axle_mode,state_start,contro
   _T_ax(0.0),
   _domega(0.0),
   _engine(),
+  _electric_motor(),
+  _powertrain_type(Powertrain_type::COMBUSTION),
   _brakes(),
   _delta(0.0),
   _beta({0.0,0.0})
@@ -71,9 +76,25 @@ Axle_car_6dof<Timeseries_t,Tire_left_t,Tire_right_t,Axle_mode,state_start,contro
     // Construct the specific parameters of the axle
     if constexpr ( std::is_same<Axle_mode<0,0>, POWERED_WITHOUT_DIFFERENTIAL<0,0>>::value )
     {
-        // Construct engine and brakes
-        if ( database.has_element(path + "engine/") )
-            _engine = Engine<Timeseries_t>(database, path + "engine/", true);
+        if ( database.has_element(path + "powertrain_type") )
+        {
+            const std::string pt = database.get_element(path + "powertrain_type").get_value(std::string());
+            database.get_element(path + "powertrain_type").set_attribute("__unused__","false");
+            if ( pt == "electric" )
+                _powertrain_type = Powertrain_type::ELECTRIC;
+        }
+
+        if ( _powertrain_type == Powertrain_type::ELECTRIC )
+        {
+            if ( database.has_element(path + "electric-motor/") )
+                _electric_motor = Electric_motor<Timeseries_t>(database, path + "electric-motor/");
+        }
+        else
+        {
+            // Construct engine and brakes
+            if ( database.has_element(path + "engine/") )
+                _engine = Engine<Timeseries_t>(database, path + "engine/", true);
+        }
 
         if ( database.has_element(path + "brakes/" ) )
             _brakes = Brake<Timeseries_t>(database, path + "brakes/");
@@ -194,8 +215,16 @@ std::enable_if_t<std::is_same<T,POWERED_WITHOUT_DIFFERENTIAL<0,0>>::value,void> 
         const Timeseries_t throttle_percentage  =  smooth_pos( throttle,_throttle_smooth_pos);
         const Timeseries_t brake_percentage     =  smooth_pos(-throttle,_throttle_smooth_pos);
 
-        // Compute engine torque
-        _T_ax  =  _engine(throttle_percentage, omega);
+        if ( _powertrain_type == Powertrain_type::ELECTRIC )
+        {
+            // Compute electric motor torque
+            _T_ax = _electric_motor(throttle_percentage, omega);
+        }
+        else
+        {
+            // Compute combustion engine torque
+            _T_ax = _engine(throttle_percentage, omega);
+        }
 
         // Compute brake torque
         _T_ax -= smooth_sign(omega,1.0)*_brakes(brake_percentage);

@@ -93,9 +93,27 @@ Axle_car_3dof<Timeseries_t, Tire_left_t, Tire_right_t, Axle_mode, state_start,co
     // Construct the specific parameters of the axle
     if constexpr ( std::is_same<Axle_mode<0,0>, POWERED<0,0>>::value )
     {
-        // Construct engine and brakes
-        _engine = Engine<Timeseries_t>(database, path + "engine/", true);
-        _engine_boost = Engine<Timeseries_t>(database, path + "boost/", true);
+        // Check if powertrain_type is specified in XML
+        if ( database.has_element(path + "powertrain_type") )
+        {
+            const std::string pt = database.get_element(path + "powertrain_type").get_value(std::string());
+            database.get_element(path + "powertrain_type").set_attribute("__unused__","false");
+            if ( pt == "electric" )
+                _powertrain_type = Powertrain_type::ELECTRIC;
+        }
+
+        if ( _powertrain_type == Powertrain_type::ELECTRIC )
+        {
+            // Electric powertrain: load motor parameters
+            if ( database.has_element(path + "electric-motor/") )
+                _electric_motor = Electric_motor<Timeseries_t>(database, path + "electric-motor/");
+        }
+        else
+        {
+            // Combustion powertrain: load engine and boost
+            _engine = Engine<Timeseries_t>(database, path + "engine/", true);
+            _engine_boost = Engine<Timeseries_t>(database, path + "boost/", true);
+        }
     }
     else if constexpr ( std::is_same<Axle_mode<0,0>, STEERING<0,0>>::value )
     {
@@ -142,7 +160,7 @@ inline bool Axle_car_3dof<Timeseries_t,Tire_left_t,Tire_right_t,Axle_mode,state_
                 found = true;
             }
 
-        // If not found, look for the engine
+        // If not found, look for the engine/motor
         if constexpr ( std::is_same<Axle_mode<0,0>, POWERED<0,0>>::value )
         {
             if ( !found )
@@ -156,6 +174,13 @@ inline bool Axle_car_3dof<Timeseries_t,Tire_left_t,Tire_right_t,Axle_mode,state_
                 if ( parameter.find(base_type::_path + "boost/") == 0 )
                 {
                     _engine_boost.set_parameter(parameter, value);
+                    found = true;
+                }
+
+            if ( !found )
+                if ( parameter.find(base_type::_path + "electric-motor/") == 0 )
+                {
+                    _electric_motor.set_parameter(parameter, value);
                     found = true;
                 }
         }
@@ -183,11 +208,18 @@ inline void Axle_car_3dof<Timeseries_t,Tire_left_t,Tire_right_t,Axle_mode,state_
     // Write the parameters of the brake
     _brakes.fill_xml(doc);
 
-    // Write the parameters of the engine
+    // Write the parameters of the engine / electric motor
     if constexpr ( std::is_same<Axle_mode<0,0>, POWERED<0,0>>::value )
     {
-        _engine.fill_xml(doc);
-        _engine_boost.fill_xml(doc);
+        if ( _powertrain_type == Powertrain_type::ELECTRIC )
+        {
+            _electric_motor.fill_xml(doc);
+        }
+        else
+        {
+            _engine.fill_xml(doc);
+            _engine_boost.fill_xml(doc);
+        }
     }
 
     // Write the parameters of this class
@@ -242,18 +274,30 @@ void Axle_car_3dof<Timeseries_t,Tire_left_t,Tire_right_t,Axle_mode,state_start,c
         // Compute throttle percentage 
         const Timeseries_t throttle_percentage  =  smooth_pos( throttle,_throttle_smooth_pos);
 
-        // Compute engine torque as engine_power/mean(omega_l,omega_r)
-        // Computed this way, the power balance of the axle is:
-        // T_left.omega_left + T_right.omega_right = net_power = engine_power - differential_dissipation <= engine_power
-        // with differential_dissipation = differential_stiffness.(omega_left - omega_right)^2
-        //
-        // Ref: https://eprints.soton.ac.uk/417133/1/GP2manuscriptPURE_002_.pdf
-        const Timeseries_t engine_torque = _engine(throttle_percentage, 0.5*(omega_left + omega_right));
-        const Timeseries_t differential_torque = _differential_stiffness*(omega_left - omega_right);
+        if ( _powertrain_type == Powertrain_type::ELECTRIC )
+        {
+            // Electric motor: torque split by differential stiffness
+            const Timeseries_t motor_torque = _electric_motor(throttle_percentage, 0.5*(omega_left + omega_right));
+            const Timeseries_t differential_torque = _differential_stiffness*(omega_left - omega_right);
+            _torque_left  += 0.5*motor_torque - differential_torque;
+            _torque_right += 0.5*motor_torque + differential_torque;
+        }
+        else
+        {
+            // Combustion engine + boost
+            // Compute engine torque as engine_power/mean(omega_l,omega_r)
+            // Computed this way, the power balance of the axle is:
+            // T_left.omega_left + T_right.omega_right = net_power = engine_power - differential_dissipation <= engine_power
+            // with differential_dissipation = differential_stiffness.(omega_left - omega_right)^2
+            //
+            // Ref: https://eprints.soton.ac.uk/417133/1/GP2manuscriptPURE_002_.pdf
+            const Timeseries_t engine_torque = _engine(throttle_percentage, 0.5*(omega_left + omega_right));
+            const Timeseries_t differential_torque = _differential_stiffness*(omega_left - omega_right);
 
-        const Timeseries_t boost_torque  = _engine_boost(throttle_percentage*_boost, 0.5*(omega_left + omega_right));
-        _torque_left  += 0.5*(engine_torque + boost_torque) - differential_torque;
-        _torque_right += 0.5*(engine_torque + boost_torque) + differential_torque;
+            const Timeseries_t boost_torque  = _engine_boost(throttle_percentage*_boost, 0.5*(omega_left + omega_right));
+            _torque_left  += 0.5*(engine_torque + boost_torque) - differential_torque;
+            _torque_right += 0.5*(engine_torque + boost_torque) + differential_torque;
+        }
     }
 
     // Compute the time derivative of the two kappas

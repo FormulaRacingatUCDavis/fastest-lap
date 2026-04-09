@@ -226,7 +226,7 @@ class limebeer2014f1
 
         std::tuple<std::vector<scalar>,std::vector<scalar>> optimal_laptime_derivative_control_bounds() const
         {
-            return {{-20.0*DEG,-10.0,-10.0}, {20.0*DEG, 10.0, 10.0}};
+            return {{-20.0*DEG,-10.0,-10.0,-10.0}, {20.0*DEG, 10.0, 10.0, 10.0}};
         }
 
         std::pair<std::vector<scalar>,std::vector<scalar>> optimal_laptime_extra_constraints_bounds(const scalar s) const
@@ -294,7 +294,13 @@ class limebeer2014f1
         {
             std::array<Timeseries_t,Integral_quantities::N_INTEGRAL_QUANTITIES> outputs;
 
-            outputs[Integral_quantities::IENGINE_POWER]            = this->get_chassis().get_rear_axle().get_engine().get_power()*1.0e-6;
+            const bool is_electric = (this->get_chassis().get_rear_axle().get_powertrain_type() ==
+                                      Rear_axle_t::Powertrain_type::ELECTRIC);
+
+            // Engine/motor power [MJ/s = MW]: zero for electric (power tracked separately if needed)
+            outputs[Integral_quantities::IENGINE_POWER] =
+                is_electric ? Timeseries_t(0.0)
+                            : this->get_chassis().get_rear_axle().get_engine().get_power()*1.0e-6;
             
             outputs[Integral_quantities::IFRONT_LEFT_TIRE_ENERGY]  = -this->get_chassis().get_front_axle().template get_tire<0>().get_dissipation()*1.0e-6;
 
@@ -304,10 +310,14 @@ class limebeer2014f1
 
             outputs[Integral_quantities::IREAR_RIGHT_TIRE_ENERGY]  = -this->get_chassis().get_rear_axle().template get_tire<1>().get_dissipation()*1.0e-6;
 
-            outputs[Integral_quantities::IBOOST_TIME]              = this->get_chassis().get_rear_axle().get_boost();
+            // Boost time: only meaningful for combustion powertrain
+            outputs[Integral_quantities::IBOOST_TIME] =
+                is_electric ? Timeseries_t(0.0)
+                            : this->get_chassis().get_rear_axle().get_boost();
 
             return outputs;
         }
+
 
     };
 

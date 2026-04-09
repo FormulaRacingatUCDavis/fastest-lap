@@ -4,6 +4,7 @@
 #include "axle.h"
 #include "src/core/actuators/engine.h"
 #include "src/core/actuators/brake.h"
+#include "src/core/actuators/electric_motor.h"
 #include "lion/io/Xml_document.h"
 #include "lion/io/database_parameters.h"
 
@@ -209,10 +210,19 @@ class Axle_car_3dof : public Axle<Timeseries_t,std::tuple<Tire_left_t,Tire_right
     //! @param[in] tire: which tire (LEFT/RIGHT)
     const Vector3d<Timeseries_t> get_tire_velocity(Tires tire) const { return {0.0,0.0,0.0}; }
 
+    //! Powertrain type selector
+    enum class Powertrain_type { COMBUSTION, ELECTRIC };
+
     //! Get the engine
     const Engine<Timeseries_t>& get_engine() const { return _engine; }
 
     const Engine<Timeseries_t>& get_engine_boost() const { return _engine_boost; }
+
+    //! Get the electric motor
+    const Electric_motor<Timeseries_t>& get_electric_motor() const { return _electric_motor; }
+
+    //! Get the active powertrain type
+    Powertrain_type get_powertrain_type() const { return _powertrain_type; }
 
     const Timeseries_t& get_boost() const { return _boost; }
 
@@ -300,9 +310,13 @@ class Axle_car_3dof : public Axle<Timeseries_t,std::tuple<Tire_left_t,Tire_right
     // Actuators
     Brake<Timeseries_t>  _brakes;       //! [c] Brakes model
 
-    // Extra members for POWERED
+    // Extra members for POWERED (combustion)
     Engine<Timeseries_t> _engine;       //! [c] Engine model
     Engine<Timeseries_t> _engine_boost; //! [c] Engine model for the boost
+
+    // Extra members for POWERED (electric)
+    Electric_motor<Timeseries_t> _electric_motor; //! [c] Electric motor model
+    Powertrain_type _powertrain_type = Powertrain_type::COMBUSTION; //! [c] Active powertrain type
 
     // Extra members for STEERING
     Timeseries_t _delta;                //! [in] Steering angle [rad]

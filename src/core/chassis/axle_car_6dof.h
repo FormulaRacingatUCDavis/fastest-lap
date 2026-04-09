@@ -3,6 +3,7 @@
 
 #include "axle.h"
 #include "src/core/actuators/engine.h"
+#include "src/core/actuators/electric_motor.h"
 #include "src/core/actuators/brake.h"
 #include "lion/io/Xml_document.h"
 #include "lion/io/database_parameters.h"
@@ -257,6 +258,18 @@ class Axle_car_6dof : public Axle<Timeseries_t,std::tuple<Tire_left_t,Tire_right
     //! @param[in] tire: which tire (LEFT/RIGHT)
     const scalar get_tire_y_position(Tires tire) const { return _y_tire[tire]; }
 
+    //! Powertrain type selector
+    enum class Powertrain_type { COMBUSTION, ELECTRIC };
+
+    //! Get the active powertrain type
+    Powertrain_type get_powertrain_type() const { return _powertrain_type; }
+
+    //! Get the engine
+    const Engine<Timeseries_t>& get_engine() const { return _engine; }
+
+    //! Get the electric motor
+    const Electric_motor<Timeseries_t>& get_electric_motor() const { return _electric_motor; }
+
     //! Get the tire relative velocity (in axle frame)
     //! @param[in] tire: which tire (LEFT/RIGHT)
     const Vector3d<Timeseries_t> get_tire_velocity(Tires tire) const { 
@@ -340,9 +353,14 @@ class Axle_car_6dof : public Axle<Timeseries_t,std::tuple<Tire_left_t,Tire_right
     Timeseries_t _omega;    //! [in] Angular speed of the shaft [rad/s]
     Timeseries_t _throttle; //! [in] Throttle/brake value in [-1/1]
     Timeseries_t _T_ax;     //! [in] Torque applied to the axle [Nm]
-    Timeseries_t _domega;   //! [out] Angular acceleration of the shaft [rad/s2]
-    scalar _I;            //! [c] Inertia of all parts connected to the shaft [kg m2]
-    Engine<Timeseries_t> _engine;       //! [c] Engine model
+    Timeseries_t _domega;               //! [out] Drive axle angular acceleration [rad/s2]
+    scalar _I;                          //! [c] Inertia of all parts connected to the shaft [kg m2]
+
+    // Actuators
+    Engine<Timeseries_t> _engine;       //! [c] Engine model (if combustion)
+    Electric_motor<Timeseries_t> _electric_motor; //! [c] Electric motor (if electric)
+    Powertrain_type _powertrain_type;   //! [c] Active powertrain type
+
     Brake<Timeseries_t>  _brakes;       //! [c] Brakes model
 
     // Parameters for STEERING_FREE_ROLL
