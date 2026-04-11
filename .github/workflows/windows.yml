@@ -106,3 +106,4 @@ jobs:
       working-directory: ${{runner.workspace}}/fastest-lap/build
       # Execute the build.  You can specify a specific target with "--target <NAME>" 
       run: ctest --verbose 
+      
