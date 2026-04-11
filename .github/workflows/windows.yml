@@ -43,7 +43,7 @@ jobs:
            patch
            
     - name: Install fypp
-      run: pip install fypp
+      run: pacman -S python-fypp
       
     - name: Configure
       run: >-
@@ -82,7 +82,7 @@ jobs:
          install: >-
            git
            gcc
-           gcc-fortran
+           mingw-w64-x86_64-gcc-fortran
            python
            python-pip
            cmake
@@ -91,7 +91,7 @@ jobs:
            patch
            
     - name: Install fypp
-      run: pip install fypp
+      run: pacman -S python-fypp
       
     - name: Configure
       run: >-
