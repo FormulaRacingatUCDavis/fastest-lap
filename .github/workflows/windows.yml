@@ -43,7 +43,7 @@ jobs:
            patch
            
     - name: Install fypp
-      run: pacman -S python-fypp
+      run: pip install fypp --break-system-packages
       
     - name: Configure
       run: >-
@@ -91,7 +91,7 @@ jobs:
            patch
            
     - name: Install fypp
-      run: pacman -S python-fypp
+      run: pip install fypp --break-system-packages
       
     - name: Configure
       run: >-
