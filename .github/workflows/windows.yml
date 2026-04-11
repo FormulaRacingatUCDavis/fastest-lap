@@ -29,16 +29,16 @@ jobs:
     - name: Setup MinGW native environment
       uses: msys2/setup-msys2@v2
       with:
-         msystem: MSYS
+         msystem: MINGW64
          update: true
          install: >-
-           git
-           gcc
+           git 
+           mingw-w64-x86_64-gcc
            mingw-w64-x86_64-gcc-fortran
-           python
-           python-pip
-           cmake
-           ninja
+           mingw-w64-x86_64-python
+           mingw-w64-x86_64-python-pip 
+           mingw-w64-x86_64-cmake
+           mingw-w64-x86_64-ninja
            make
            patch
            
@@ -77,16 +77,16 @@ jobs:
     - name: Setup MinGW native environment
       uses: msys2/setup-msys2@v2
       with:
-         msystem: MSYS
+         msystem: MINGW64
          update: true
          install: >-
-           git
-           gcc
+           git 
+           mingw-w64-x86_64-gcc
            mingw-w64-x86_64-gcc-fortran
-           python
-           python-pip
-           cmake
-           ninja
+           mingw-w64-x86_64-python
+           mingw-w64-x86_64-python-pip 
+           mingw-w64-x86_64-cmake
+           mingw-w64-x86_64-ninja
            make
            patch
            
