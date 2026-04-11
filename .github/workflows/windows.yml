@@ -24,10 +24,10 @@ jobs:
         shell: msys2 {0}    
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6.0.2
 
     - name: Setup MinGW native environment
-      uses: msys2/setup-msys2@v4
+      uses: msys2/setup-msys2@v2
       with:
          msystem: MSYS
          update: true
@@ -72,10 +72,10 @@ jobs:
         shell: msys2 {0}    
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6.0.2
 
     - name: Setup MinGW native environment
-      uses: msys2/setup-msys2@v4
+      uses: msys2/setup-msys2@v2
       with:
          msystem: MSYS
          update: true
