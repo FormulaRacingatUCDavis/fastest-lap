@@ -42,25 +42,25 @@ jobs:
       # Execute the build.  You can specify a specific target with "--target <NAME>" 
       run: cmake --build . --config $BUILD_RELEASE
       
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: tests_release
         path: ${{runner.workspace}}/build/src/test/**/*_test
         retention-days: 1 
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: applications_test_release_data
         path: src/test/applications/data/
         retention-days: 1 
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: vehicles_test_release_data
         path: src/test/vehicles/data/
         retention-days: 1 
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: database_release
         path: database
@@ -71,7 +71,7 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       run: cp -rf ${{runner.workspace}}/build/lib/* ${{runner.workspace}}/build/thirdparty/lib
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: libraries_release
         path: ${{runner.workspace}}/build/thirdparty/lib/*
@@ -109,25 +109,25 @@ jobs:
       # Execute the build.  You can specify a specific target with "--target <NAME>" 
       run: cmake --build . --config $BUILD_DEBUG
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: tests_debug
         path: ${{runner.workspace}}/build/src/test/**/*_test
         retention-days: 1 
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: applications_test_debug_data
         path: src/test/applications/data/
         retention-days: 1 
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: vehicles_test_debug_data
         path: src/test/vehicles/data/
         retention-days: 1 
           
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: database_debug
         path: database
@@ -138,7 +138,7 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       run: cp -rf ${{runner.workspace}}/build/lib/* ${{runner.workspace}}/build/thirdparty/lib
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: libraries_debug
         path: ${{runner.workspace}}/build/thirdparty/lib/*
@@ -157,7 +157,7 @@ jobs:
       shell: bash
       run: cp ${{runner.workspace}}/fastest-lap/.github/workflows/valgrindtest.sh ${{runner.workspace}}/fastest-lap/src/scripts
 
-    - uses: actions/upload-artifact@v2 
+    - uses: actions/upload-artifact@v4 
       with:
         name: valgrind_utils
         path: ${{runner.workspace}}/fastest-lap/src/scripts/*
