@@ -37,14 +37,13 @@ jobs:
            mingw-w64-x86_64-gcc-fortran
            mingw-w64-x86_64-python
            mingw-w64-x86_64-python-pip 
-           python-fypp
            mingw-w64-x86_64-cmake
            mingw-w64-x86_64-ninja
            make
            patch
            
-    # - name: Install fypp
-    #   run: pip install fypp --break-system-packages
+    - name: Install fypp
+      run: python -m pip install fypp --break-system-packages
       
     - name: Configure
       run: >-
