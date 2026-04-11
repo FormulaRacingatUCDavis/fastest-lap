@@ -34,7 +34,7 @@ jobs:
          install: >-
            git
            gcc
-           gcc-fortran
+           mingw-w64-x86_64-gcc-fortran
            python
            python-pip
            cmake
