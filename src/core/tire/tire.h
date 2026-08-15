@@ -16,6 +16,11 @@ class Tire
  public:
     using Timeseries_type = Timeseries_t;
 
+    // Exact second derivatives are the default for the steady-state NLP.
+    // Tire models with piecewise expressions can override this flag and use
+    // IPOPT's limited-memory Hessian approximation instead.
+    static constexpr bool steady_state_prefers_limited_memory_hessian = false;
+
     //! Indices of the state variables of this class: none
     struct input_names
     {

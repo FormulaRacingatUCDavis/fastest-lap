@@ -9,7 +9,15 @@ SET(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 option(CHECK_BOUNDS "Enable bounds check at runtime" OFF)
 option(ENABLE_TESTS "Enable testing" ON)
+<<<<<<< Updated upstream
 option(PYTHON_API_ABSOLUTE_PATH "Use absolute paths to look for libraries in the python API" ON)
+=======
+option(PYTHON_API_ABSOLUTE_PATH
+    "Add a build-tree absolute library fallback to the Python API (single-config generators only)"
+    OFF)
+set(FRUCD_TIRE_TEST_FILE "" CACHE FILEPATH
+    "Optional fitted FRUCD MAT file used by the tire regression tests")
+>>>>>>> Stashed changes
 
 message("")
 message("	Configure third party libraries ")
@@ -70,12 +78,6 @@ include(matlabutils)
 
 add_subdirectory(./src)
 
-if ( ${PYTHON_API_ABSOLUTE_PATH} )
-	set(libdir_python ${CMAKE_BINARY_DIR}/lib)
-else()
-	file(RELATIVE_PATH libdir_python ${CMAKE_SOURCE_DIR}/examples/python/ ${CMAKE_BINARY_DIR}/lib)
-endif()
-
 if ( MSYS AND ${CMAKE_BUILD_TYPE} STREQUAL "Debug" )
     set(CONSTRUCT_LIBFASTESTLAPC OFF)
 else()
@@ -83,12 +85,50 @@ else()
 endif()
 
 if (${CONSTRUCT_LIBFASTESTLAPC})
-    configure_file(${CMAKE_SOURCE_DIR}/src/main/python/fastest_lap.py ${CMAKE_SOURCE_DIR}/examples/python/fastest_lap.py)
-    file(GENERATE OUTPUT ${CMAKE_SOURCE_DIR}/examples/python/fastest_lap.py INPUT ${CMAKE_SOURCE_DIR}/examples/python/fastest_lap.py)
+    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/python")
+
+    if (PYTHON_API_ABSOLUTE_PATH AND CMAKE_CONFIGURATION_TYPES)
+        message(FATAL_ERROR
+            "PYTHON_API_ABSOLUTE_PATH is not supported by multi-config generators; "
+            "use the relocatable Python runtime layout instead")
+    endif()
+
+    if (PYTHON_API_ABSOLUTE_PATH)
+        set(PYTHON_API_LIBRARY_HINT "$<TARGET_FILE_DIR:fastestlapc>")
+    else()
+        set(PYTHON_API_LIBRARY_HINT "")
+    endif()
+
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/src/main/python/fastest_lap.py"
+        "${CMAKE_BINARY_DIR}/python/fastest_lap.py.in"
+        @ONLY
+    )
+    file(GENERATE
+        OUTPUT "${CMAKE_BINARY_DIR}/python/fastest_lap.py"
+        INPUT "${CMAKE_BINARY_DIR}/python/fastest_lap.py.in"
+    )
+    install(FILES "${CMAKE_BINARY_DIR}/python/fastest_lap.py"
+            DESTINATION python)
+    install(FILES "${CMAKE_SOURCE_DIR}/src/main/python/README-runtime.md"
+            DESTINATION python)
 endif()
 
 install(DIRECTORY "${CMAKE_BINARY_DIR}/thirdparty/lib/"
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")
+        DESTINATION lib)
 
+install(FILES
+        "${CMAKE_SOURCE_DIR}/database/vehicles/fsae/fsae-2026-frucd.xml"
+        "${CMAKE_SOURCE_DIR}/database/vehicles/fsae/fsae-2026-pacejka.xml"
+        "${CMAKE_SOURCE_DIR}/database/vehicles/fsae/fsae-2026-pacejka-simple.xml"
+        "${CMAKE_SOURCE_DIR}/database/vehicles/fsae/fsae-2026-electric-frucd.xml"
+        DESTINATION share/fastest-lap/vehicles/fsae)
 
+<<<<<<< Updated upstream
 
+=======
+if (WIN32 OR MSYS)
+    install(DIRECTORY "${CMAKE_BINARY_DIR}/thirdparty/bin/"
+            DESTINATION bin)
+endif()
+>>>>>>> Stashed changes

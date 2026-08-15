@@ -1,0 +1,109 @@
+<!--
+  Formula SAE combustion vehicle using a reduced fastest-lap standard Pacejka tire.
+
+  Generated from Hoosier_R20_16(18)x75(60)-10x8(7).mat at 70 kPa,
+  0 deg inclination and 200 to 1800 N vertical load. The source FRUCD forces
+  include the configured 0.7 longitudinal/lateral correction factors.
+-->
+<vehicle type="fsae-pacejka-3dof">
+    <front-axle model="axle-car">
+        <track units="m">1.250</track>
+        <inertia units="kg.m2">0.60</inertia>
+        <smooth_throttle_coeff>1.0e-5</smooth_throttle_coeff>
+        <brakes><max_torque units="N.m">900.0</max_torque></brakes>
+    </front-axle>
+
+    <rear-axle model="axle-car">
+        <track units="m">1.210</track>
+        <inertia units="kg.m2">0.60</inertia>
+        <smooth_throttle_coeff>1.0e-5</smooth_throttle_coeff>
+        <differential_stiffness units="N.m.s/rad">50.0</differential_stiffness>
+        <brakes><max_torque units="N.m">900.0</max_torque></brakes>
+        <engine><maximum-power units="kW">59.7</maximum-power></engine>
+        <boost><maximum-power units="kW">0.0</maximum-power></boost>
+    </rear-axle>
+
+    <chassis>
+        <mass units="kg">280.0</mass>
+        <inertia>
+            <Ixx>45.0</Ixx> <Ixy>0.0</Ixy> <Ixz>0.0</Ixz>
+            <Iyx>0.0</Iyx> <Iyy>80.0</Iyy> <Iyz>0.0</Iyz>
+            <Izx>0.0</Izx> <Izy>0.0</Izy> <Izz>100.0</Izz>
+        </inertia>
+        <aerodynamics>
+            <rho units="kg/m3">1.225</rho>
+            <area units="m2">0.90</area>
+            <cd>1.00</cd>
+            <cl>1.50</cl>
+        </aerodynamics>
+        <com units="m"><x>0.0</x> <y>0.0</y> <z>-0.285</z></com>
+        <front_axle units="m"><x>0.924</x> <y>0.0</y> <z>-0.2032</z></front_axle>
+        <rear_axle units="m"><x>-0.756</x> <y>0.0</y> <z>-0.2032</z></rear_axle>
+        <pressure_center units="m"><x>0.0</x> <y>0.0</y> <z>-0.250</z></pressure_center>
+        <brake_bias>0.60</brake_bias>
+        <roll_balance_coefficient>0.55</roll_balance_coefficient>
+        <Fz_max_ref2>1.0</Fz_max_ref2>
+    </chassis>
+
+    <front-tire model="tire-pacejka" type="normal">
+        <radius>0.20319999999999999</radius>
+        <radial-stiffness>100000</radial-stiffness>
+        <radial-damping>0</radial-damping>
+        <Fz-max-ref2>1</Fz-max-ref2>
+        <nominal-vertical-load>3000</nominal-vertical-load>
+        <lambdaFz0>1</lambdaFz0>
+        <longitudinal>
+            <pure>
+                <pCx1>0.50000047594022334</pCx1>
+                <pDx1>2.3855511344866596</pDx1>
+                <pEx1>-0.95266463088871978</pEx1>
+                <pKx1>17.33302251462576</pKx1>
+                <pKx2>11.574068085349786</pKx2>
+                <pKx3>-1.4784467853902798</pKx3>
+            </pure>
+            <combined><rBx1>4.7348924072073011</rBx1> <rCx1>1.072423265016887</rCx1></combined>
+        </longitudinal>
+        <lateral>
+            <pure>
+                <pCy1>1.5931223434462058</pCy1>
+                <pDy1>1.7345705005217309</pDy1>
+                <pEy1>0.89412698264237411</pEy1>
+                <pKy1>8.9582337651758301</pKy1>
+                <pKy2>0.68750086396446042</pKy2>
+                <pKy4>2.4045655646677933</pKy4>
+            </pure>
+            <combined><rBy1>4.8798086763920034</rBy1> <rCy1>1.0509189062182955</rCy1></combined>
+        </lateral>
+    </front-tire>
+
+    <rear-tire model="tire-pacejka" type="normal">
+        <radius>0.20319999999999999</radius>
+        <radial-stiffness>100000</radial-stiffness>
+        <radial-damping>0</radial-damping>
+        <Fz-max-ref2>1</Fz-max-ref2>
+        <nominal-vertical-load>3000</nominal-vertical-load>
+        <lambdaFz0>1</lambdaFz0>
+        <longitudinal>
+            <pure>
+                <pCx1>0.50000047594022334</pCx1>
+                <pDx1>2.3855511344866596</pDx1>
+                <pEx1>-0.95266463088871978</pEx1>
+                <pKx1>17.33302251462576</pKx1>
+                <pKx2>11.574068085349786</pKx2>
+                <pKx3>-1.4784467853902798</pKx3>
+            </pure>
+            <combined><rBx1>4.7348924072073011</rBx1> <rCx1>1.072423265016887</rCx1></combined>
+        </longitudinal>
+        <lateral>
+            <pure>
+                <pCy1>1.5931223434462058</pCy1>
+                <pDy1>1.7345705005217309</pDy1>
+                <pEy1>0.89412698264237411</pEy1>
+                <pKy1>8.9582337651758301</pKy1>
+                <pKy2>0.68750086396446042</pKy2>
+                <pKy4>2.4045655646677933</pKy4>
+            </pure>
+            <combined><rBy1>4.8798086763920034</rBy1> <rCy1>1.0509189062182955</rCy1></combined>
+        </lateral>
+    </rear-tire>
+</vehicle>

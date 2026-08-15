@@ -111,7 +111,9 @@ struct STEERING
 //!  @param Axle_mode: POWERED_WITHOUT_DIFFERENTIAL or STEERING_FREE_ROLL
 //!  @param state_start: index of the first state variable defined here
 //!  @param control_start: index of the first control variable defined here
-template<typename Timeseries_t, typename Tire_left_t, typename Tire_right_t, template<size_t,size_t> typename Axle_mode, size_t state_start, size_t control_start>
+template<typename Timeseries_t, typename Tire_left_t, typename Tire_right_t,
+         template<size_t,size_t> typename Axle_mode, size_t state_start,
+         size_t control_start, template<typename> class Powertrain_t = Engine>
 class Axle_car_3dof : public Axle<Timeseries_t,std::tuple<Tire_left_t,Tire_right_t>,state_start,control_start>, 
     public Axle_mode<Axle<Timeseries_t,std::tuple<Tire_left_t,Tire_right_t>,state_start,control_start>::state_names::end, 
                      Axle<Timeseries_t,std::tuple<Tire_left_t,Tire_right_t>,state_start,control_start>::control_names::end> 
@@ -209,8 +211,8 @@ class Axle_car_3dof : public Axle<Timeseries_t,std::tuple<Tire_left_t,Tire_right
     //! @param[in] tire: which tire (LEFT/RIGHT)
     const Vector3d<Timeseries_t> get_tire_velocity(Tires tire) const { return {0.0,0.0,0.0}; }
 
-    //! Get the engine
-    const Engine<Timeseries_t>& get_engine() const { return _engine; }
+    //! Get the primary powertrain
+    const Powertrain_t<Timeseries_t>& get_engine() const { return _engine; }
 
     const Engine<Timeseries_t>& get_engine_boost() const { return _engine_boost; }
 
@@ -301,7 +303,7 @@ class Axle_car_3dof : public Axle<Timeseries_t,std::tuple<Tire_left_t,Tire_right
     Brake<Timeseries_t>  _brakes;       //! [c] Brakes model
 
     // Extra members for POWERED
-    Engine<Timeseries_t> _engine;       //! [c] Engine model
+    Powertrain_t<Timeseries_t> _engine; //! [c] Primary engine/motor model
     Engine<Timeseries_t> _engine_boost; //! [c] Engine model for the boost
 
     // Extra members for STEERING

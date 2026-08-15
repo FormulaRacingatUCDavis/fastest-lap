@@ -1,0 +1,113 @@
+<!--
+  Baseline rear-wheel-drive Formula SAE Electric vehicle using the FRUCD
+  MF6.2 + MNC tire model.
+
+  The fitted MAT file is referenced by filename so the database remains
+  relocatable. Place the fit beside this XML file, or replace mat-file with an
+  absolute/path-relative-to-this-file location.
+
+  Rule-derived limit:
+    accumulator discharge power  80 kW
+
+  Representative engineering assumptions (including a 75 kg driver):
+    wheelbase             1.680 m
+    front/rear track      1.250 / 1.210 m
+    mass                  300 kg
+    static balance        45 / 55 % front/rear
+    motor layout          single motor, rear-wheel drive
+    motor peak torque     100 N.m
+    motor speed limit     12000 rpm
+    fixed reduction       4.5:1
+    regenerative power   40 kW maximum battery charge
+
+  Replace the motor, efficiency, mass, inertia, and aerodynamic assumptions
+  with team measurements before using the model for correlation work.
+-->
+<vehicle type="fsae-electric-3dof">
+    <front-axle model="axle-car">
+        <track units="m">1.250</track>
+        <inertia units="kg.m2">0.60</inertia>
+        <smooth_throttle_coeff>1.0e-5</smooth_throttle_coeff>
+        <brakes>
+            <max_torque units="N.m">900.0</max_torque>
+        </brakes>
+    </front-axle>
+
+    <rear-axle model="axle-car">
+        <track units="m">1.210</track>
+        <inertia units="kg.m2">0.60</inertia>
+        <smooth_throttle_coeff>1.0e-5</smooth_throttle_coeff>
+        <differential_stiffness units="N.m.s/rad">50.0</differential_stiffness>
+        <brakes>
+            <max_torque units="N.m">900.0</max_torque>
+        </brakes>
+        <motor>
+            <maximum-torque units="N.m">100.0</maximum-torque>
+            <maximum-power units="kW">80.0</maximum-power>
+            <maximum-speed units="rpm">12000.0</maximum-speed>
+            <gear-ratio>4.5</gear-ratio>
+            <transmission-efficiency>0.97</transmission-efficiency>
+            <drive-efficiency>0.94</drive-efficiency>
+            <battery-maximum-discharge-power units="kW">80.0</battery-maximum-discharge-power>
+            <regenerative-maximum-torque units="N.m">60.0</regenerative-maximum-torque>
+            <regenerative-minimum-speed units="rpm">300.0</regenerative-minimum-speed>
+            <battery-maximum-charge-power units="kW">40.0</battery-maximum-charge-power>
+            <regenerative-efficiency>0.85</regenerative-efficiency>
+        </motor>
+        <boost>
+            <maximum-power units="kW">0.0</maximum-power>
+        </boost>
+    </rear-axle>
+
+    <chassis>
+        <mass units="kg">300.0</mass>
+        <inertia>
+            <Ixx>50.0</Ixx> <Ixy>0.0</Ixy> <Ixz>0.0</Ixz>
+            <Iyx>0.0</Iyx> <Iyy>90.0</Iyy> <Iyz>0.0</Iyz>
+            <Izx>0.0</Izx> <Izy>0.0</Izy> <Izz>110.0</Izz>
+        </inertia>
+
+        <aerodynamics>
+            <rho units="kg/m3">1.225</rho>
+            <area units="m2">0.90</area>
+            <cd>1.00</cd>
+            <cl>1.50</cl>
+        </aerodynamics>
+
+        <com units="m">
+            <x>0.0</x> <y>0.0</y> <z>-0.285</z>
+        </com>
+        <front_axle units="m">
+            <x>0.924</x> <y>0.0</y> <z>-0.2032</z>
+        </front_axle>
+        <rear_axle units="m">
+            <x>-0.756</x> <y>0.0</y> <z>-0.2032</z>
+        </rear_axle>
+        <pressure_center units="m">
+            <x>0.0</x> <y>0.0</y> <z>-0.250</z>
+        </pressure_center>
+        <brake_bias>0.60</brake_bias>
+        <roll_balance_coefficient>0.55</roll_balance_coefficient>
+        <Fz_max_ref2>1.0</Fz_max_ref2>
+    </chassis>
+
+    <front-tire model="tire-frucd-p6-mnc" type="normal">
+        <mat-file>Hoosier_R20_16(18)x75(60)-10x8(7).mat</mat-file>
+        <radial-stiffness>100000.0</radial-stiffness>
+        <radial-damping>0.0</radial-damping>
+        <Fz-max-ref2>1.0</Fz-max-ref2>
+        <inclination units="deg">0.0</inclination>
+        <longitudinal-force-correction-factor>0.7</longitudinal-force-correction-factor>
+        <lateral-force-correction-factor>0.7</lateral-force-correction-factor>
+    </front-tire>
+
+    <rear-tire model="tire-frucd-p6-mnc" type="normal">
+        <mat-file>Hoosier_R20_16(18)x75(60)-10x8(7).mat</mat-file>
+        <radial-stiffness>100000.0</radial-stiffness>
+        <radial-damping>0.0</radial-damping>
+        <Fz-max-ref2>1.0</Fz-max-ref2>
+        <inclination units="deg">0.0</inclination>
+        <longitudinal-force-correction-factor>0.7</longitudinal-force-correction-factor>
+        <lateral-force-correction-factor>0.7</lateral-force-correction-factor>
+    </rear-tire>
+</vehicle>

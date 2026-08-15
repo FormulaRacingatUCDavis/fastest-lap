@@ -11,19 +11,22 @@
 #include "src/core/vehicles/dynamic_model_car.h"
 #include "lion/thirdparty/include/cppad/cppad.hpp"
 
-template<typename Timeseries_t>
-class limebeer2014f1
+template<typename Timeseries_t,
+         template<typename,size_t,size_t> class Left_tire_t,
+         template<typename,size_t,size_t> class Right_tire_t,
+         template<typename> class Rear_powertrain_t = Engine>
+class formula_car_3dof
 {
  public:
-    limebeer2014f1() = delete;
+    formula_car_3dof() = delete;
 
-    using Front_left_tire_type  = Tire_pacejka_simple<Timeseries_t,0,0>;
-    using Front_right_tire_type = Tire_pacejka_simple<Timeseries_t,Front_left_tire_type::state_names::end, Front_left_tire_type::control_names::end>;
-    using Rear_left_tire_type   = Tire_pacejka_simple<Timeseries_t,Front_right_tire_type::state_names::end, Front_right_tire_type::control_names::end>;
-    using Rear_right_tire_type  = Tire_pacejka_simple<Timeseries_t,Rear_left_tire_type::state_names::end, Rear_left_tire_type::control_names::end>;
+    using Front_left_tire_type  = Left_tire_t<Timeseries_t,0,0>;
+    using Front_right_tire_type = Right_tire_t<Timeseries_t,Front_left_tire_type::state_names::end, Front_left_tire_type::control_names::end>;
+    using Rear_left_tire_type   = Left_tire_t<Timeseries_t,Front_right_tire_type::state_names::end, Front_right_tire_type::control_names::end>;
+    using Rear_right_tire_type  = Right_tire_t<Timeseries_t,Rear_left_tire_type::state_names::end, Rear_left_tire_type::control_names::end>;
 
     using Front_axle_t          = Axle_car_3dof<Timeseries_t,Front_left_tire_type,Front_right_tire_type,STEERING,Rear_right_tire_type::state_names::end,Rear_right_tire_type::control_names::end>;
-    using Rear_axle_t           = Axle_car_3dof<Timeseries_t,Rear_left_tire_type,Rear_right_tire_type,POWERED,Front_axle_t::Axle_type::state_names::end,Front_axle_t::Axle_type::control_names::end>;
+    using Rear_axle_t           = Axle_car_3dof<Timeseries_t,Rear_left_tire_type,Rear_right_tire_type,POWERED,Front_axle_t::Axle_type::state_names::end,Front_axle_t::Axle_type::control_names::end,Rear_powertrain_t>;
     using Chassis_t             = Chassis_car_3dof<Timeseries_t,Front_axle_t,Rear_axle_t,Rear_axle_t::Axle_type::state_names::end,Rear_axle_t::Axle_type::control_names::end>;
 
     using Road_cartesian_t   = Road_cartesian<Timeseries_t,Chassis_t::state_names::end,Chassis_t::control_names::end>;
@@ -49,6 +52,9 @@ class limebeer2014f1
 
         // Factor to scale the acceleration on the fitness function
         static constexpr const scalar acceleration_units = g0;
+
+        static constexpr bool steady_state_prefers_limited_memory_hessian =
+            Front_left_tire_type::steady_state_prefers_limited_memory_hessian;
 
         static constexpr const scalar maximum_yaw = 10.0*DEG;
         static constexpr const scalar maximum_steering = 10.0*DEG;
@@ -226,7 +232,7 @@ class limebeer2014f1
 
         std::tuple<std::vector<scalar>,std::vector<scalar>> optimal_laptime_derivative_control_bounds() const
         {
-            return {{-20.0*DEG,-10.0,-10.0}, {20.0*DEG, 10.0, 10.0}};
+            return {{-20.0*DEG,-10.0,-10.0,-10.0}, {20.0*DEG, 10.0, 10.0, 10.0}};
         }
 
         std::pair<std::vector<scalar>,std::vector<scalar>> optimal_laptime_extra_constraints_bounds(const scalar s) const
@@ -241,15 +247,15 @@ class limebeer2014f1
             const auto& tire_rl = this->get_chassis().get_rear_axle().template get_tire<0>();
             const auto& tire_rr = this->get_chassis().get_rear_axle().template get_tire<1>();
 
-            const auto& lambda_max_fl_0g = Value(tire_fl.get_model().maximum_lambda(0.0));
-            const auto& lambda_max_fr_0g = Value(tire_fr.get_model().maximum_lambda(0.0));
-            const auto& lambda_max_rl_0g = Value(tire_rl.get_model().maximum_lambda(0.0));
-            const auto& lambda_max_rr_0g = Value(tire_rr.get_model().maximum_lambda(0.0));
+            const auto lambda_max_fl_0g = Value(tire_fl.get_model().maximum_lambda(0.0));
+            const auto lambda_max_fr_0g = Value(tire_fr.get_model().maximum_lambda(0.0));
+            const auto lambda_max_rl_0g = Value(tire_rl.get_model().maximum_lambda(0.0));
+            const auto lambda_max_rr_0g = Value(tire_rr.get_model().maximum_lambda(0.0));
 
-            const auto& lambda_max_fl_1g = Value(tire_fl.get_model().maximum_lambda(m*g0));
-            const auto& lambda_max_fr_1g = Value(tire_fr.get_model().maximum_lambda(m*g0));
-            const auto& lambda_max_rl_1g = Value(tire_rl.get_model().maximum_lambda(m*g0));
-            const auto& lambda_max_rr_1g = Value(tire_rr.get_model().maximum_lambda(m*g0));
+            const auto lambda_max_fl_1g = Value(tire_fl.get_model().maximum_lambda(m*g0));
+            const auto lambda_max_fr_1g = Value(tire_fr.get_model().maximum_lambda(m*g0));
+            const auto lambda_max_rl_1g = Value(tire_rl.get_model().maximum_lambda(m*g0));
+            const auto lambda_max_rr_1g = Value(tire_rr.get_model().maximum_lambda(m*g0));
 
             const auto& lambda_max_fl = max(lambda_max_fl_0g,lambda_max_fl_1g);
             const auto& lambda_max_fr = max(lambda_max_fr_0g,lambda_max_fr_1g);
@@ -286,7 +292,10 @@ class limebeer2014f1
             enum { IENGINE_POWER, IFRONT_LEFT_TIRE_ENERGY, IFRONT_RIGHT_TIRE_ENERGY,
                                   IREAR_LEFT_TIRE_ENERGY, IREAR_RIGHT_TIRE_ENERGY, IBOOST_TIME, N_INTEGRAL_QUANTITIES };
 
-            inline const static std::vector<std::string> names = {"engine-energy","tire-fl-energy","tire-fr-energy","tire-rl-energy","tire-rr-energy","boost-time"};
+            inline const static std::vector<std::string> names = {
+                Rear_powertrain_t<Timeseries_t>::energy_integral_name,
+                "tire-fl-energy","tire-fr-energy","tire-rl-energy",
+                "tire-rr-energy","boost-time"};
 
         };
 
@@ -321,6 +330,10 @@ class limebeer2014f1
     using curvilinear_p = curvilinear<Track_by_polynomial>;
     using curvilinear_a = curvilinear<Track_by_arcs>;
 };
+
+template<typename Timeseries_t>
+using limebeer2014f1 = formula_car_3dof<
+    Timeseries_t,Tire_pacejka_simple,Tire_pacejka_simple>;
 
 struct limebeer2014f1_all
 {

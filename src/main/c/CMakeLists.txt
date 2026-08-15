@@ -26,18 +26,22 @@ if ( ${CONSTRUCT_LIBFASTESTLAPC} )
         )
     
     if (NOT MSYS)
-    	if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    		set(LFASTESTLAPC_ADDITIONAL_FLAGS -static-libstdc++ -static-libgcc)
-    	endif()
+        if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT WIN32)
+            set(LFASTESTLAPC_ADDITIONAL_FLAGS -static-libstdc++ -static-libgcc)
+        endif()
     endif()
     
     target_link_libraries(fastestlapc LINK_PUBLIC lion::lion ${LFASTESTLAPC_ADDITIONAL_FLAGS})
     
-    if ( NOT APPLE)
+    if (UNIX AND NOT APPLE)
         target_link_options(fastestlapc PUBLIC -Wl,--no-as-needed -ldl)
     endif()
     
     configure_file(fastestlapc.h ${CMAKE_BINARY_DIR}/include/fastestlapc.h COPYONLY)
     
-    install(TARGETS fastestlapc)
+    install(TARGETS fastestlapc
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+        PUBLIC_HEADER DESTINATION include)
 endif()

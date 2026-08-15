@@ -123,6 +123,43 @@ inline void Tire_pacejka<Timeseries_t,Pacejka_model,state_start,control_start>::
 inline void Pacejka_standard_model::initialise()
 {
     _Fz0prime = _lambdaFz0*_Fz0;
+
+    // At the force peak:
+    // C*atan((1-E)*x + E*atan(x)) = pi/2, with x = B*slip.
+    // The left-hand side is monotone for the supported E <= 1. A finite peak
+    // exists only for C > 1. Store its dimensionless x once so the run-time
+    // maximum-slip functions remain AD-compatible.
+    const auto peak_argument = [](const scalar C, const scalar E)
+    {
+        if (C <= 1.0)
+            return scalar(0.0);
+
+        const scalar target = tan(pi/(2.0*C));
+        const auto residual = [E,target](const scalar x)
+        {
+            return (1.0-E)*x + E*atan(x) - target;
+        };
+
+        scalar lower = 0.0;
+        scalar upper = 1.0;
+        while (residual(upper) < 0.0 && upper < 1.0e6)
+            upper *= 2.0;
+        if (residual(upper) < 0.0)
+            return scalar(0.0);
+
+        for (std::size_t i=0; i<80; ++i)
+        {
+            const scalar middle = 0.5*(lower+upper);
+            if (residual(middle) < 0.0)
+                lower = middle;
+            else
+                upper = middle;
+        }
+        return 0.5*(lower+upper);
+    };
+
+    _x_peak_longitudinal = peak_argument(_pCx1,_pEx1);
+    _x_peak_lateral = peak_argument(_pCy1,_pEy1);
 }
 
 
@@ -176,6 +213,39 @@ inline Timeseries_t Pacejka_standard_model::force_combined_lateral_magic(Timeser
     const Timeseries_t Gykappa = cos(_rCy1*atan(_rBy1*kappa));
 
     return Gykappa*Fy0;
+}
+
+
+template<typename Timeseries_t>
+inline Timeseries_t Pacejka_standard_model::maximum_kappa(Timeseries_t Fz) const
+{
+    using std::abs;
+    // The reduced standard fit uses |kappa| <= 0.25. For Cx <= 1 the curve is
+    // monotone and has no finite mathematical maximum, so its domain boundary
+    // is the meaningful normalization value.
+    if (_x_peak_longitudinal <= 0.0)
+        return Timeseries_t(0.25);
+
+    const Timeseries_t dfz = (Fz-_Fz0prime)/_Fz0prime;
+    const Timeseries_t Bx = (_pKx1+_pKx2*dfz)*exp(_pKx3*dfz)/(_pCx1*_pDx1);
+    return abs(Timeseries_t(_x_peak_longitudinal)/Bx);
+}
+
+
+template<typename Timeseries_t>
+inline Timeseries_t Pacejka_standard_model::maximum_lambda(Timeseries_t Fz) const
+{
+    using std::abs;
+    if (_x_peak_lateral <= 0.0)
+        return Timeseries_t(0.32491969623290634); // tan(18 deg), reduction domain boundary
+
+    Timeseries_t By(0.0);
+    if (abs(Fz) > eps)
+        By = (_pKy1*_Fz0prime*sin(_pKy4*atan(Fz/(_Fz0prime*_pKy2))))
+             /(_pCy1*_pDy1*Fz);
+    else
+        By = _pKy1*_pKy4/(_pKy2*_pCy1*_pDy1);
+    return abs(Timeseries_t(_x_peak_lateral)/By);
 }
 
 

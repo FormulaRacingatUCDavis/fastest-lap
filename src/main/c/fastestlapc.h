@@ -1,7 +1,7 @@
 #ifndef FASTESTLAPC_H
 #define FASTESTLAPC_H
 
-#ifdef _MSC_VER
+#if defined(_WIN32) || defined(__CYGWIN__)
 #ifdef fastestlapc_EXPORTS
 #define fastestlapc_API __declspec(dllexport)
 #else
@@ -46,6 +46,13 @@ extern fastestlapc_API void create_track_from_xml(const char* name, const char* 
 extern fastestlapc_API void create_vector(const char* name, const int n, double* data);
 
 extern fastestlapc_API void create_scalar(const char* name, double value);
+
+//! Set the longitudinal and lateral force correction factors of a registered
+//! MF6.2 + MNC tire. Both factors must be in [0,1].
+extern fastestlapc_API int tire_set_force_correction_factors(
+    const char* tire_name,
+    const double longitudinal_factor,
+    const double lateral_factor) fastestlapc_NOEXCEPT;
 
 extern fastestlapc_API void copy_variable(const char* old_name, const char* new_name);
 

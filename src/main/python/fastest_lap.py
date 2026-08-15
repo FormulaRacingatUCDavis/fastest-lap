@@ -1,17 +1,70 @@
-# Compute GG diagram
-import matplotlib.pyplot as plt
 import ctypes as c
-import numpy as np
+import os
 import pathlib
 import xml.etree.ElementTree as xml
 
 KMH=1.0/3.6;
 
-libname="${libdir_python}/$<TARGET_FILE_NAME:fastestlapc>"
+_library_name = "$<TARGET_FILE_NAME:fastestlapc>"
+_module_dir = pathlib.Path(__file__).resolve().parent
+_library_directories = [
+	_module_dir,
+	_module_dir.parent / ("bin" if os.name == "nt" else "lib"),
+]
+_library_hint = r"@PYTHON_API_LIBRARY_HINT@"
+if _library_hint:
+	_library_directories.append(pathlib.Path(_library_hint))
+
+_dll_directory_handles = []
+if os.name == "nt" and hasattr(os, "add_dll_directory"):
+	for _directory in _library_directories:
+		if _directory.is_dir():
+			_dll_directory_handles.append(os.add_dll_directory(str(_directory)))
+
+for _directory in _library_directories:
+	_candidate = _directory / _library_name
+	if _candidate.is_file():
+		libname = str(_candidate)
+		break
+else:
+	raise ImportError(
+		"Could not find {} in {}".format(
+			_library_name, ", ".join(str(path) for path in _library_directories)))
+
 c_lib = c.CDLL(libname)
 c_lib.download_scalar.restype       = c.c_double;
 c_lib.track_download_length.restype = c.c_double;
 c_lib.vehicle_type_get_sizes.argtypes = [c.POINTER(c.c_int), c.POINTER(c.c_int), c.POINTER(c.c_int), c.c_char_p];
+c_lib.create_tire_from_mat.argtypes = [c.c_char_p, c.c_char_p]
+c_lib.create_tire_from_mat.restype = c.c_int
+c_lib.tire_set_force_correction_factors.argtypes = [
+	c.c_char_p, c.c_double, c.c_double,
+]
+c_lib.tire_set_force_correction_factors.restype = c.c_int
+c_lib.tire_get_contact_patch_loads.argtypes = [
+	c.POINTER(c.c_double), c.c_int, c.c_char_p,
+	c.c_double, c.c_double, c.c_double, c.c_double,
+	c.c_double, c.c_double, c.c_char_p,
+]
+c_lib.tire_get_contact_patch_loads.restype = c.c_int
+c_lib.fastestlap_last_error.argtypes = [c.POINTER(c.c_char), c.c_int]
+c_lib.fastestlap_last_error.restype = c.c_int
+c_lib.delete_tire.argtypes = [c.c_char_p]
+c_lib.delete_tire.restype = c.c_int
+
+
+def _last_error():
+	n_char = c_lib.fastestlap_last_error(None, 0)
+	if n_char <= 0:
+		return "Unknown fastest-lap error"
+	buffer = c.create_string_buffer(n_char + 1)
+	c_lib.fastestlap_last_error(buffer, len(buffer))
+	return buffer.value.decode("utf-8", errors="replace")
+
+
+def _check_status(status):
+	if status != 0:
+		raise RuntimeError(_last_error())
 
 # Print -----------------------------------------------------------------------------
 
@@ -48,6 +101,22 @@ def create_vehicle_empty(name,vehicle_type):
 
 	c_lib.create_vehicle_empty(name,vehicle_type)
 
+	return;
+
+def create_tire_from_mat(name,mat_file):
+	c_name = c.c_char_p(str(name).encode('utf-8'))
+	c_mat_file = c.c_char_p(str(mat_file).encode('utf-8'))
+	_check_status(c_lib.create_tire_from_mat(c_name,c_mat_file))
+	return;
+
+def tire_set_force_correction_factors(
+		tire_name, longitudinal_factor, lateral_factor):
+	"""Set registered MF6.2 + MNC Fx/Fy scale factors in [0,1]."""
+	c_tire_name = c.c_char_p(str(tire_name).encode('utf-8'))
+	_check_status(c_lib.tire_set_force_correction_factors(
+		c_tire_name,
+		c.c_double(longitudinal_factor),
+		c.c_double(lateral_factor)))
 	return;
 
 def create_track_from_xml(name,track_file):
@@ -95,6 +164,10 @@ def delete_variable(name):
 	name = c.c_char_p((name).encode('utf-8'))
 	c_lib.delete_variable(name);
 
+def delete_tire(name):
+	c_name = c.c_char_p(str(name).encode('utf-8'))
+	_check_status(c_lib.delete_tire(c_name))
+
 # Getters --------------------------------------------------------------
 
 def variable_type(name):
@@ -139,6 +212,21 @@ def download_vector(name):
 		data[i] = c_data[i];
 
 	return data;
+
+def tire_get_contact_patch_loads(
+	tire_name, slip_angle_rad, slip_ratio, normal_load_N,
+	pressure_kpa, inclination_deg, velocity_mps, side="left"):
+	"""Return (Fx, Fy, Mz, Mx, My) for a registered MF6.2 + MNC tire."""
+	loads = (c.c_double*5)()
+	c_tire_name = c.c_char_p(str(tire_name).encode('utf-8'))
+	c_side = c.c_char_p(str(side).encode('utf-8'))
+	status = c_lib.tire_get_contact_patch_loads(
+		loads, c.c_int(len(loads)), c_tire_name,
+		c.c_double(slip_angle_rad), c.c_double(slip_ratio),
+		c.c_double(normal_load_N), c.c_double(pressure_kpa),
+		c.c_double(inclination_deg), c.c_double(velocity_mps), c_side)
+	_check_status(status)
+	return tuple(loads)
 
 def vehicle_type_get_sizes(vehicle_type_name):
 	c_vehicle_type_name = c.c_char_p((vehicle_type_name).encode('utf-8'));
@@ -327,6 +415,8 @@ def optimal_laptime(vehicle, track, s, options):
 	return prefix.strip(),variable_list;
 
 def track_coordinates(track):
+	import numpy as np
+
 	x_center = np.array(track_download_data(track,"centerline.x"));
 	y_center = np.array(track_download_data(track,"centerline.y"));
 	x_left   = np.array(track_download_data(track,"left.x"));
@@ -338,6 +428,9 @@ def track_coordinates(track):
 	return x_center, y_center, x_left, y_left, x_right, y_right, theta;
 
 def plot_gg(ay,ay_minus,ax_max,ax_min):
+	import matplotlib.pyplot as plt
+	import numpy as np
+
 	# initializing the figure
 	fig = plt.figure()
 	rect = [0, 0,2.0, 2.0]
@@ -392,6 +485,8 @@ def plot_gg(ay,ay_minus,ax_max,ax_min):
 	return fig;
 
 def plot_track(x_center, y_center, x_left, y_left, x_right, y_right, theta):
+	import matplotlib.pyplot as plt
+
 	fig = plt.figure(figsize=(14,7));
 	plt.axis('equal');
 	plt.grid(False);
@@ -402,5 +497,7 @@ def plot_track(x_center, y_center, x_left, y_left, x_right, y_right, theta):
 	return fig;
 
 def plot_optimal_laptime(s, x, y, track):
+	import matplotlib.pyplot as plt
+
 	fig = plot_track(*track_coordinates(track))
 	plt.plot(x,y,linewidth=2,color="orange");

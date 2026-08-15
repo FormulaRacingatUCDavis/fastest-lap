@@ -1,15 +1,24 @@
 #include "fastestlapc.h"
+#include <array>
+#include <cstring>
 #include <iostream>
+#include <memory>
+#include <mutex>
 #include <unordered_map>
 #include <algorithm>
 #include <regex>
 
 #include "src/core/vehicles/lot2016kart.h"
 #include "src/core/vehicles/limebeer2014f1.h"
+#include "src/core/vehicles/fsae2026.h"
+#include "src/core/vehicles/fsae2026_electric.h"
+#include "src/core/vehicles/fsae2026_reduced.h"
 #include "src/core/applications/steady_state.h"
 #include "src/core/applications/optimal_laptime.h"
 #include "lion/propagators/crank_nicolson.h"
 #include "src/core/foundation/fastest_lap_exception.h"
+#include "src/core/tire/frucd_mat_tire_data.h"
+#include "src/core/tire/frucd_p6_mnc_model.h"
 
 #define CATCH()  catch(fastest_lap_exception& ex) \
  { \
@@ -30,14 +39,74 @@ catch(lion_exception& ex) \
 // Tables
 std::unordered_map<std::string,lot2016kart_all>     table_kart_6dof;
 std::unordered_map<std::string,limebeer2014f1_all>  table_f1_3dof;
+std::unordered_map<std::string,fsae2026_all>        table_fsae_3dof;
+std::unordered_map<std::string,fsae2026_electric_all> table_fsae_electric_3dof;
+std::unordered_map<std::string,fsae2026_pacejka_all> table_fsae_pacejka_3dof;
+std::unordered_map<std::string,fsae2026_pacejka_simple_all> table_fsae_pacejka_simple_3dof;
 std::unordered_map<std::string,Track_by_polynomial> table_track;
 std::unordered_map<std::string,scalar>              table_scalar;
 std::unordered_map<std::string,std::vector<scalar>> table_vector;
+
+struct Frucd_tire_entry
+{
+    std::shared_ptr<const frucd::P6_mnc_model<double>> model;
+    std::string mat_file;
+};
+
+std::unordered_map<std::string,Frucd_tire_entry> table_frucd_tire;
+std::recursive_mutex table_frucd_tire_mutex;
+
+namespace
+{
+thread_local std::array<char,2048> c_api_last_error = {};
+
+void set_c_api_last_error(const char* message) noexcept
+{
+    if (message == nullptr)
+        message = "Unknown C++ exception";
+    const std::size_t copied_size = std::min(
+        std::strlen(message),c_api_last_error.size()-1u);
+    std::memcpy(c_api_last_error.data(),message,copied_size);
+    c_api_last_error[copied_size] = '\0';
+}
+
+template<typename Callable>
+int run_status_api(Callable&& callable) noexcept
+{
+    try
+    {
+        c_api_last_error[0] = '\0';
+        callable();
+        return 0;
+    }
+    catch (const std::exception& exception)
+    {
+        set_c_api_last_error(exception.what());
+        return 1;
+    }
+    catch (...)
+    {
+        set_c_api_last_error(nullptr);
+        return 2;
+    }
+}
+
+std::string required_string(const char* value, const char* parameter)
+{
+    if (value == nullptr || value[0] == '\0')
+        throw std::invalid_argument(std::string(parameter) + " must not be empty");
+    return value;
+}
+}
 
 
 #ifdef __cplusplus
 fastestlapc_API std::unordered_map<std::string,lot2016kart_all>& get_table_kart_6dof() { return table_kart_6dof; }
 fastestlapc_API std::unordered_map<std::string,limebeer2014f1_all>& get_table_f1_3dof() { return table_f1_3dof; }
+fastestlapc_API std::unordered_map<std::string,fsae2026_all>& get_table_fsae_3dof() { return table_fsae_3dof; }
+fastestlapc_API std::unordered_map<std::string,fsae2026_electric_all>& get_table_fsae_electric_3dof() { return table_fsae_electric_3dof; }
+fastestlapc_API std::unordered_map<std::string,fsae2026_pacejka_all>& get_table_fsae_pacejka_3dof() { return table_fsae_pacejka_3dof; }
+fastestlapc_API std::unordered_map<std::string,fsae2026_pacejka_simple_all>& get_table_fsae_pacejka_simple_3dof() { return table_fsae_pacejka_simple_3dof; }
 fastestlapc_API std::unordered_map<std::string,Track_by_polynomial>& get_table_track() { return table_track; }
 fastestlapc_API std::unordered_map<std::string,scalar>& get_table_scalar() { return table_scalar; }
 fastestlapc_API std::unordered_map<std::string,std::vector<scalar>>& get_table_vector() { return table_vector; }
@@ -60,10 +129,22 @@ template<typename vehicle_t>
 Optimal_laptime<typename vehicle_t::vehicle_ad_curvilinear>& get_warm_start()
 {
     static Optimal_laptime<typename limebeer2014f1_all::vehicle_ad_curvilinear> warm_start_limebeer2014f1;
+    static Optimal_laptime<typename fsae2026_all::vehicle_ad_curvilinear> warm_start_fsae2026;
+    static Optimal_laptime<typename fsae2026_electric_all::vehicle_ad_curvilinear> warm_start_fsae2026_electric;
+    static Optimal_laptime<typename fsae2026_pacejka_all::vehicle_ad_curvilinear> warm_start_fsae2026_pacejka;
+    static Optimal_laptime<typename fsae2026_pacejka_simple_all::vehicle_ad_curvilinear> warm_start_fsae2026_pacejka_simple;
     static Optimal_laptime<typename lot2016kart_all::vehicle_ad_curvilinear> warm_start_lot2016kart;
 
     if constexpr (std::is_same_v<vehicle_t,limebeer2014f1_all>)
         return warm_start_limebeer2014f1;
+    else if constexpr (std::is_same_v<vehicle_t,fsae2026_all>)
+        return warm_start_fsae2026;
+    else if constexpr (std::is_same_v<vehicle_t,fsae2026_electric_all>)
+        return warm_start_fsae2026_electric;
+    else if constexpr (std::is_same_v<vehicle_t,fsae2026_pacejka_all>)
+        return warm_start_fsae2026_pacejka;
+    else if constexpr (std::is_same_v<vehicle_t,fsae2026_pacejka_simple_all>)
+        return warm_start_fsae2026_pacejka_simple;
     else if constexpr (std::is_same_v<vehicle_t,lot2016kart_all>)
         return warm_start_lot2016kart;
     else
@@ -79,6 +160,18 @@ void check_variable_exists_in_tables(const std::string& name)
     if ( table_f1_3dof.count(name) != 0 )
         throw fastest_lap_exception(std::string("Vehicle of type f1-3dof with name \"") + name + "\" already exists");
 
+    if ( table_fsae_3dof.count(name) != 0 )
+        throw fastest_lap_exception(std::string("Vehicle of type fsae-3dof with name \"") + name + "\" already exists");
+
+    if ( table_fsae_electric_3dof.count(name) != 0 )
+        throw fastest_lap_exception(std::string("Vehicle of type fsae-electric-3dof with name \"") + name + "\" already exists");
+
+    if ( table_fsae_pacejka_3dof.count(name) != 0 )
+        throw fastest_lap_exception(std::string("Vehicle of type fsae-pacejka-3dof with name \"") + name + "\" already exists");
+
+    if ( table_fsae_pacejka_simple_3dof.count(name) != 0 )
+        throw fastest_lap_exception(std::string("Vehicle of type fsae-pacejka-simple-3dof with name \"") + name + "\" already exists");
+
     if ( table_track.count(name) != 0 )
         throw fastest_lap_exception(std::string("Track with name \"") + name + "\" already exists");
 
@@ -87,6 +180,12 @@ void check_variable_exists_in_tables(const std::string& name)
 
     if ( table_vector.count(name) != 0 )
         throw fastest_lap_exception(std::string("Vector with name \"") + name + "\" already exists");
+
+    {
+        const std::lock_guard<std::recursive_mutex> lock(table_frucd_tire_mutex);
+        if ( table_frucd_tire.count(name) != 0 )
+            throw fastest_lap_exception(std::string("FRUCD tire with name \"") + name + "\" already exists");
+    }
 }
 
 
@@ -133,12 +232,156 @@ void create_vehicle_from_xml(const char* vehicle_name, const char* database_file
             throw fastest_lap_exception("Vehicle already exists");
         }
     }
+    else if ( vehicle_type == "fsae-3dof" )
+    {
+        auto out = table_fsae_3dof.insert({s_name,{database}});
+        if (!out.second)
+            throw fastest_lap_exception("Vehicle already exists");
+    }
+    else if ( vehicle_type == "fsae-electric-3dof" )
+    {
+        auto out = table_fsae_electric_3dof.insert({s_name,{database}});
+        if (!out.second)
+            throw fastest_lap_exception("Vehicle already exists");
+    }
+    else if ( vehicle_type == "fsae-pacejka-3dof" )
+    {
+        auto out = table_fsae_pacejka_3dof.insert({s_name,{database}});
+        if (!out.second)
+            throw fastest_lap_exception("Vehicle already exists");
+    }
+    else if ( vehicle_type == "fsae-pacejka-simple-3dof" )
+    {
+        auto out = table_fsae_pacejka_simple_3dof.insert({s_name,{database}});
+        if (!out.second)
+            throw fastest_lap_exception("Vehicle already exists");
+    }
     else
     {
         throw fastest_lap_exception("Vehicle type not recognized");
     }
  }
  CATCH()
+}
+
+
+int create_tire_from_mat(const char* tire_name, const char* mat_file) noexcept
+{
+    return run_status_api([&]()
+    {
+        const std::string name = required_string(tire_name,"tire_name");
+        const std::string filename = required_string(mat_file,"mat_file");
+        check_variable_exists_in_tables(name);
+
+        const auto parameters = frucd::Mat_tire_data::load(filename);
+        auto model = std::make_shared<const frucd::P6_mnc_model<double>>(parameters);
+        if (!model->is_ready())
+            throw std::runtime_error("The fitted FRUCD tire model is incomplete");
+
+        const std::lock_guard<std::recursive_mutex> lock(table_frucd_tire_mutex);
+        const auto insertion = table_frucd_tire.emplace(
+            name,Frucd_tire_entry{std::move(model),filename});
+        if (!insertion.second)
+            throw std::runtime_error("Could not register FRUCD tire \"" + name + "\"");
+    });
+}
+
+
+int tire_get_contact_patch_loads(
+    double* loads,
+    const int n_loads,
+    const char* tire_name,
+    const double slip_angle_rad,
+    const double slip_ratio,
+    const double normal_load_N,
+    const double pressure_kpa,
+    const double inclination_deg,
+    const double velocity_mps,
+    const char* side) noexcept
+{
+    return run_status_api([&]()
+    {
+        if (loads == nullptr)
+            throw std::invalid_argument("loads must not be null");
+        if (n_loads != 5)
+            throw std::invalid_argument("n_loads must be exactly 5");
+
+        const std::string name = required_string(tire_name,"tire_name");
+        std::shared_ptr<const frucd::P6_mnc_model<double>> model;
+        {
+            const std::lock_guard<std::recursive_mutex> lock(table_frucd_tire_mutex);
+            const auto found = table_frucd_tire.find(name);
+            if (found == table_frucd_tire.end())
+                throw std::invalid_argument("FRUCD tire \"" + name + "\" does not exist");
+            model = found->second.model;
+        }
+
+        const std::string side_name = required_string(side,"side");
+        frucd::Tire_side tire_side;
+        if (side_name == "left")
+            tire_side = frucd::Tire_side::left;
+        else if (side_name == "right")
+            tire_side = frucd::Tire_side::right;
+        else
+            throw std::invalid_argument("side must be \"left\" or \"right\"");
+
+        const auto result = model->evaluate(
+            slip_angle_rad,slip_ratio,normal_load_N,pressure_kpa,
+            inclination_deg,velocity_mps,tire_side);
+        loads[0] = result.Fx;
+        loads[1] = result.Fy;
+        loads[2] = result.Mz;
+        loads[3] = result.Mx;
+        loads[4] = result.My;
+    });
+}
+
+
+int tire_set_force_correction_factors(
+    const char* tire_name,
+    const double longitudinal_factor,
+    const double lateral_factor) noexcept
+{
+    return run_status_api([&]()
+    {
+        const std::string name = required_string(tire_name,"tire_name");
+        const std::lock_guard<std::recursive_mutex> lock(table_frucd_tire_mutex);
+        const auto found = table_frucd_tire.find(name);
+        if (found == table_frucd_tire.end())
+            throw std::invalid_argument(
+                "FRUCD tire \"" + name + "\" does not exist");
+
+        auto replacement =
+            std::make_shared<frucd::P6_mnc_model<double>>(*found->second.model);
+        replacement->set_force_correction_factors(
+            longitudinal_factor,lateral_factor);
+        found->second.model = std::move(replacement);
+    });
+}
+
+
+int fastestlap_last_error(char* buffer, const int buffer_size) noexcept
+{
+    const int required_size = static_cast<int>(std::strlen(c_api_last_error.data()));
+    if (buffer != nullptr && buffer_size > 0)
+    {
+        const int copied_size = std::min(required_size,buffer_size-1);
+        std::memcpy(buffer,c_api_last_error.data(),static_cast<std::size_t>(copied_size));
+        buffer[copied_size] = '\0';
+    }
+    return required_size;
+}
+
+
+int delete_tire(const char* tire_name) noexcept
+{
+    return run_status_api([&]()
+    {
+        const std::string name = required_string(tire_name,"tire_name");
+        const std::lock_guard<std::recursive_mutex> lock(table_frucd_tire_mutex);
+        if (table_frucd_tire.erase(name) == 0u)
+            throw std::invalid_argument("FRUCD tire \"" + name + "\" does not exist");
+    });
 }
 
 
@@ -163,6 +406,22 @@ void create_vehicle_empty(const char* vehicle_name, const char* vehicle_type_c)
         {
             throw fastest_lap_exception("The insertion to the map failed");
         }
+    }
+    else if ( vehicle_type == "fsae-3dof" )
+    {
+        throw fastest_lap_exception("[ERROR] create_vehicle_empty -> vehicle type \"fsae-3dof\" requires a fitted MAT tire and must be created from XML");
+    }
+    else if ( vehicle_type == "fsae-electric-3dof" )
+    {
+        throw fastest_lap_exception("[ERROR] create_vehicle_empty -> vehicle type \"fsae-electric-3dof\" requires a fitted MAT tire and must be created from XML");
+    }
+    else if ( vehicle_type == "fsae-pacejka-3dof" )
+    {
+        table_fsae_pacejka_3dof.insert({s_name,{}});
+    }
+    else if ( vehicle_type == "fsae-pacejka-simple-3dof" )
+    {
+        table_fsae_pacejka_simple_3dof.insert({s_name,{}});
     }
     else
     {
@@ -207,6 +466,7 @@ void copy_variable(const char* c_old_name, const char* c_new_name)
 {
  try
  {
+    const std::lock_guard<std::recursive_mutex> tire_lock(table_frucd_tire_mutex);
     const std::string old_name = c_old_name;
     const std::string new_name = c_new_name;
 
@@ -221,6 +481,26 @@ void copy_variable(const char* c_old_name, const char* c_new_name)
     else if ( table_f1_3dof.count(old_name) != 0 )
     {
         table_f1_3dof.insert({new_name, table_f1_3dof.at(old_name)});
+    }
+    else if ( table_fsae_3dof.count(old_name) != 0 )
+    {
+        table_fsae_3dof.insert({new_name, table_fsae_3dof.at(old_name)});
+    }
+    else if ( table_fsae_electric_3dof.count(old_name) != 0 )
+    {
+        table_fsae_electric_3dof.insert({new_name,table_fsae_electric_3dof.at(old_name)});
+    }
+    else if ( table_fsae_pacejka_3dof.count(old_name) != 0 )
+    {
+        table_fsae_pacejka_3dof.insert({new_name,table_fsae_pacejka_3dof.at(old_name)});
+    }
+    else if ( table_fsae_pacejka_simple_3dof.count(old_name) != 0 )
+    {
+        table_fsae_pacejka_simple_3dof.insert({new_name,table_fsae_pacejka_simple_3dof.at(old_name)});
+    }
+    else if ( table_frucd_tire.count(old_name) != 0 )
+    {
+        table_frucd_tire.insert({new_name, table_frucd_tire.at(old_name)});
     }
     else if ( table_track.count(old_name) != 0 )
     {
@@ -246,6 +526,7 @@ void move_variable(const char* c_old_name, const char* c_new_name)
 {
  try
  {
+    const std::lock_guard<std::recursive_mutex> tire_lock(table_frucd_tire_mutex);
     const std::string old_name = c_old_name;
     const std::string new_name = c_new_name;
 
@@ -262,6 +543,31 @@ void move_variable(const char* c_old_name, const char* c_new_name)
     {
         table_f1_3dof.insert({new_name, table_f1_3dof.at(old_name)});
         table_f1_3dof.erase(old_name);
+    }
+    else if ( table_fsae_3dof.count(old_name) != 0 )
+    {
+        table_fsae_3dof.insert({new_name, table_fsae_3dof.at(old_name)});
+        table_fsae_3dof.erase(old_name);
+    }
+    else if ( table_fsae_electric_3dof.count(old_name) != 0 )
+    {
+        table_fsae_electric_3dof.insert({new_name,table_fsae_electric_3dof.at(old_name)});
+        table_fsae_electric_3dof.erase(old_name);
+    }
+    else if ( table_fsae_pacejka_3dof.count(old_name) != 0 )
+    {
+        table_fsae_pacejka_3dof.insert({new_name,table_fsae_pacejka_3dof.at(old_name)});
+        table_fsae_pacejka_3dof.erase(old_name);
+    }
+    else if ( table_fsae_pacejka_simple_3dof.count(old_name) != 0 )
+    {
+        table_fsae_pacejka_simple_3dof.insert({new_name,table_fsae_pacejka_simple_3dof.at(old_name)});
+        table_fsae_pacejka_simple_3dof.erase(old_name);
+    }
+    else if ( table_frucd_tire.count(old_name) != 0 )
+    {
+        table_frucd_tire.insert({new_name, table_frucd_tire.at(old_name)});
+        table_frucd_tire.erase(old_name);
     }
     else if ( table_track.count(old_name) != 0 )
     {
@@ -291,6 +597,7 @@ void print_variables()
 {
  try
  {
+    const std::lock_guard<std::recursive_mutex> tire_lock(table_frucd_tire_mutex);
     std::cout << "Type kart_6dof: " << table_kart_6dof.size() << " variables" << std::endl;
 
     for (const auto& car : table_kart_6dof)
@@ -301,6 +608,36 @@ void print_variables()
 
     for (const auto& car : table_f1_3dof)
         std::cout << "    -> " << car.first << std::endl;
+    std::cout << std::endl;
+
+    std::cout << "Type fsae_3dof: " << table_fsae_3dof.size() << " variables" << std::endl;
+
+    for (const auto& car : table_fsae_3dof)
+        std::cout << "    -> " << car.first << std::endl;
+    std::cout << std::endl;
+
+    std::cout << "Type fsae-electric-3dof: " << table_fsae_electric_3dof.size() << " variables" << std::endl;
+
+    for (const auto& car : table_fsae_electric_3dof)
+        std::cout << "    -> " << car.first << std::endl;
+    std::cout << std::endl;
+
+    std::cout << "Type fsae-pacejka-3dof: " << table_fsae_pacejka_3dof.size() << " variables" << std::endl;
+
+    for (const auto& car : table_fsae_pacejka_3dof)
+        std::cout << "    -> " << car.first << std::endl;
+    std::cout << std::endl;
+
+    std::cout << "Type fsae-pacejka-simple-3dof: " << table_fsae_pacejka_simple_3dof.size() << " variables" << std::endl;
+
+    for (const auto& car : table_fsae_pacejka_simple_3dof)
+        std::cout << "    -> " << car.first << std::endl;
+    std::cout << std::endl;
+
+    std::cout << "Type tire-frucd-p6-mnc: " << table_frucd_tire.size() << " variables" << std::endl;
+
+    for (const auto& tire : table_frucd_tire)
+        std::cout << "    -> " << tire.first << std::endl;
     std::cout << std::endl;
 
     std::cout << "Type tracks: " << table_track.size() << " variables" << std::endl;
@@ -325,6 +662,7 @@ void print_variables()
 
 std::string print_variable_to_std_string(const std::string& variable_name)
 {
+    const std::lock_guard<std::recursive_mutex> tire_lock(table_frucd_tire_mutex);
     std::ostringstream s_out;
     if ( table_kart_6dof.count(variable_name) != 0 )
     {
@@ -333,6 +671,27 @@ std::string print_variable_to_std_string(const std::string& variable_name)
     else if ( table_f1_3dof.count(variable_name) != 0 )
     {
         table_f1_3dof.at(variable_name).curvilinear_scalar.xml()->print(s_out);
+    }
+    else if ( table_fsae_3dof.count(variable_name) != 0 )
+    {
+        table_fsae_3dof.at(variable_name).curvilinear_scalar.xml()->print(s_out);
+    }
+    else if ( table_fsae_electric_3dof.count(variable_name) != 0 )
+    {
+        table_fsae_electric_3dof.at(variable_name).curvilinear_scalar.xml()->print(s_out);
+    }
+    else if ( table_fsae_pacejka_3dof.count(variable_name) != 0 )
+    {
+        table_fsae_pacejka_3dof.at(variable_name).curvilinear_scalar.xml()->print(s_out);
+    }
+    else if ( table_fsae_pacejka_simple_3dof.count(variable_name) != 0 )
+    {
+        table_fsae_pacejka_simple_3dof.at(variable_name).curvilinear_scalar.xml()->print(s_out);
+    }
+    else if ( table_frucd_tire.count(variable_name) != 0 )
+    {
+        s_out << "type: tire-frucd-p6-mnc\nmat-file: "
+              << table_frucd_tire.at(variable_name).mat_file;
     }
     else if ( table_track.count(variable_name) != 0 )
     {
@@ -424,6 +783,22 @@ double vehicle_get_output(const char* c_vehicle_name, const double* q, const dou
     {
         return vehicle_get_property_generic(table_f1_3dof.at(vehicle_name).curvilinear_scalar, q, u, s, property_name);
     }
+    else if ( table_fsae_3dof.count(vehicle_name) != 0 )
+    {
+        return vehicle_get_property_generic(table_fsae_3dof.at(vehicle_name).curvilinear_scalar, q, u, s, property_name);
+    }
+    else if ( table_fsae_electric_3dof.count(vehicle_name) != 0 )
+    {
+        return vehicle_get_property_generic(table_fsae_electric_3dof.at(vehicle_name).curvilinear_scalar,q,u,s,property_name);
+    }
+    else if ( table_fsae_pacejka_3dof.count(vehicle_name) != 0 )
+    {
+        return vehicle_get_property_generic(table_fsae_pacejka_3dof.at(vehicle_name).curvilinear_scalar,q,u,s,property_name);
+    }
+    else if ( table_fsae_pacejka_simple_3dof.count(vehicle_name) != 0 )
+    {
+        return vehicle_get_property_generic(table_fsae_pacejka_simple_3dof.at(vehicle_name).curvilinear_scalar,q,u,s,property_name);
+    }
     else
     {
         throw fastest_lap_exception("[ERROR] libfastestlapc::vehicle_get_property -> vehicle type is not defined");
@@ -445,6 +820,22 @@ void vehicle_save_as_xml(const char* c_vehicle_name, const char* file_name)
     else if ( table_f1_3dof.count(vehicle_name) != 0 )
     {
         table_f1_3dof.at(vehicle_name).curvilinear_scalar.xml()->save(std::string(file_name));
+    }
+    else if ( table_fsae_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_3dof.at(vehicle_name).curvilinear_scalar.xml()->save(std::string(file_name));
+    }
+    else if ( table_fsae_electric_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_electric_3dof.at(vehicle_name).curvilinear_scalar.xml()->save(std::string(file_name));
+    }
+    else if ( table_fsae_pacejka_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_pacejka_3dof.at(vehicle_name).curvilinear_scalar.xml()->save(std::string(file_name));
+    }
+    else if ( table_fsae_pacejka_simple_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_pacejka_simple_3dof.at(vehicle_name).curvilinear_scalar.xml()->save(std::string(file_name));
     }
     else
     {
@@ -616,14 +1007,30 @@ void variable_type(char* c_variable_type, const int str_len_max, const char* c_v
 {
  try
  {
+    const std::lock_guard<std::recursive_mutex> tire_lock(table_frucd_tire_mutex);
     std::string name = c_variable_name;
     std::string type;
 
     if ( table_f1_3dof.count(name) != 0 )
         type = "f1-3dof";
 
+    else if ( table_fsae_3dof.count(name) != 0 )
+        type = "fsae-3dof";
+
+    else if ( table_fsae_electric_3dof.count(name) != 0 )
+        type = "fsae-electric-3dof";
+
+    else if ( table_fsae_pacejka_3dof.count(name) != 0 )
+        type = "fsae-pacejka-3dof";
+
+    else if ( table_fsae_pacejka_simple_3dof.count(name) != 0 )
+        type = "fsae-pacejka-simple-3dof";
+
     else if ( table_kart_6dof.count(name) != 0 )
         type = "kart-6dof";
+
+    else if ( table_frucd_tire.count(name) != 0 )
+        type = "tire-frucd-p6-mnc";
 
     else if ( table_track.count(name) != 0 )
         type = "track";
@@ -711,9 +1118,33 @@ void vehicle_type_get_sizes(int* number_of_inputs, int* n_control, int* n_output
         *n_control   = lot2016kart_all::vehicle_ad_curvilinear::number_of_controls;
         *n_outputs   = lot2016kart_all::vehicle_ad_curvilinear{}.get_outputs_map().size();
     }
+    else if ( vehicle_type_name == "fsae-3dof" )
+    {
+        *number_of_inputs = fsae2026_all::vehicle_ad_curvilinear::number_of_inputs;
+        *n_control = fsae2026_all::vehicle_ad_curvilinear::number_of_controls;
+        *n_outputs = fsae2026_all::vehicle_ad_curvilinear{}.get_outputs_map().size();
+    }
+    else if ( vehicle_type_name == "fsae-electric-3dof" )
+    {
+        *number_of_inputs = fsae2026_electric_all::vehicle_ad_curvilinear::number_of_inputs;
+        *n_control = fsae2026_electric_all::vehicle_ad_curvilinear::number_of_controls;
+        *n_outputs = fsae2026_electric_all::vehicle_ad_curvilinear{}.get_outputs_map().size();
+    }
+    else if ( vehicle_type_name == "fsae-pacejka-3dof" )
+    {
+        *number_of_inputs = fsae2026_pacejka_all::vehicle_ad_curvilinear::number_of_inputs;
+        *n_control = fsae2026_pacejka_all::vehicle_ad_curvilinear::number_of_controls;
+        *n_outputs = fsae2026_pacejka_all::vehicle_ad_curvilinear{}.get_outputs_map().size();
+    }
+    else if ( vehicle_type_name == "fsae-pacejka-simple-3dof" )
+    {
+        *number_of_inputs = fsae2026_pacejka_simple_all::vehicle_ad_curvilinear::number_of_inputs;
+        *n_control = fsae2026_pacejka_simple_all::vehicle_ad_curvilinear::number_of_controls;
+        *n_outputs = fsae2026_pacejka_simple_all::vehicle_ad_curvilinear{}.get_outputs_map().size();
+    }
     else
     {
-        throw fastest_lap_exception("[ERROR] vehicle_type_get_size_for_name -> No vehicle type with name \"" + vehicle_type_name + "\" exists. Types are \"f1-3dof\" and \"kart-6dof\"");
+        throw fastest_lap_exception("[ERROR] vehicle_type_get_size_for_name -> No vehicle type with name \"" + vehicle_type_name + "\" exists. Types are \"f1-3dof\", \"fsae-3dof\", \"fsae-electric-3dof\", and \"kart-6dof\"");
     }
  }
  CATCH()
@@ -764,8 +1195,20 @@ void vehicle_type_get_names(char* c_key_name, char* c_state_names[], char* c_con
     } else if ( vehicle_type_name == "kart-6dof" ) {
         vehicle_type_get_names_generic<lot2016kart_all::vehicle_ad_curvilinear>(c_key_name, c_state_names, c_control_names, c_output_names, n_char);
 
+    } else if ( vehicle_type_name == "fsae-3dof" ) {
+        vehicle_type_get_names_generic<fsae2026_all::vehicle_ad_curvilinear>(c_key_name, c_state_names, c_control_names, c_output_names, n_char);
+
+    } else if ( vehicle_type_name == "fsae-electric-3dof" ) {
+        vehicle_type_get_names_generic<fsae2026_electric_all::vehicle_ad_curvilinear>(c_key_name,c_state_names,c_control_names,c_output_names,n_char);
+
+    } else if ( vehicle_type_name == "fsae-pacejka-3dof" ) {
+        vehicle_type_get_names_generic<fsae2026_pacejka_all::vehicle_ad_curvilinear>(c_key_name,c_state_names,c_control_names,c_output_names,n_char);
+
+    } else if ( vehicle_type_name == "fsae-pacejka-simple-3dof" ) {
+        vehicle_type_get_names_generic<fsae2026_pacejka_simple_all::vehicle_ad_curvilinear>(c_key_name,c_state_names,c_control_names,c_output_names,n_char);
+
     } else {
-        throw fastest_lap_exception("[ERROR] vehicle_type_get_size_for_name -> No vehicle type with name \"" + vehicle_type_name + "\" exists. Types are \"f1-3dof\" and \"kart-6dof\"");
+        throw fastest_lap_exception("[ERROR] vehicle_type_get_size_for_name -> No vehicle type with name \"" + vehicle_type_name + "\" exists. Types are \"f1-3dof\", \"fsae-3dof\", \"fsae-electric-3dof\", and \"kart-6dof\"");
 
     }
  }
@@ -782,6 +1225,22 @@ void vehicle_get_output_variable_names(char* output_names[], const int n_outputs
     if ( table_f1_3dof.count(vehicle_name) != 0 )
     {
         map = table_f1_3dof.at(vehicle_name).curvilinear_scalar.get_outputs_map();
+    }
+    else if ( table_fsae_3dof.count(vehicle_name) != 0 )
+    {
+        map = table_fsae_3dof.at(vehicle_name).curvilinear_scalar.get_outputs_map();
+    }
+    else if ( table_fsae_electric_3dof.count(vehicle_name) != 0 )
+    {
+        map = table_fsae_electric_3dof.at(vehicle_name).curvilinear_scalar.get_outputs_map();
+    }
+    else if ( table_fsae_pacejka_3dof.count(vehicle_name) != 0 )
+    {
+        map = table_fsae_pacejka_3dof.at(vehicle_name).curvilinear_scalar.get_outputs_map();
+    }
+    else if ( table_fsae_pacejka_simple_3dof.count(vehicle_name) != 0 )
+    {
+        map = table_fsae_pacejka_simple_3dof.at(vehicle_name).curvilinear_scalar.get_outputs_map();
     }
     else if ( table_kart_6dof.count(vehicle_name) != 0 )
     {
@@ -841,6 +1300,7 @@ void delete_variable(const char* c_variable_name)
 {
  try
  {
+    const std::lock_guard<std::recursive_mutex> tire_lock(table_frucd_tire_mutex);
     std::string variable_name(c_variable_name);
     variable_name = std::regex_replace(variable_name, std::regex("\\*"), ".*");
     std::regex re(variable_name);
@@ -867,8 +1327,57 @@ void delete_variable(const char* c_variable_name)
         }
     }
 
+    // (3) FSAE-3dof
+    for (auto it = table_fsae_3dof.cbegin(); it != table_fsae_3dof.cend() ; )
+    {
+        if (std::regex_match(it->first.c_str(),m,re)) {
+            it = table_fsae_3dof.erase(it++);
+        } else {
+            ++it;
+        }
+    }
 
-    // (3) Track
+    // (4) FSAE Electric-3dof
+    for (auto it = table_fsae_electric_3dof.cbegin(); it != table_fsae_electric_3dof.cend(); )
+    {
+        if (std::regex_match(it->first.c_str(),m,re)) {
+            it = table_fsae_electric_3dof.erase(it++);
+        } else {
+            ++it;
+        }
+    }
+
+    for (auto it = table_fsae_pacejka_3dof.cbegin(); it != table_fsae_pacejka_3dof.cend(); )
+    {
+        if (std::regex_match(it->first.c_str(),m,re)) {
+            it = table_fsae_pacejka_3dof.erase(it++);
+        } else {
+            ++it;
+        }
+    }
+
+    for (auto it = table_fsae_pacejka_simple_3dof.cbegin(); it != table_fsae_pacejka_simple_3dof.cend(); )
+    {
+        if (std::regex_match(it->first.c_str(),m,re)) {
+            it = table_fsae_pacejka_simple_3dof.erase(it++);
+        } else {
+            ++it;
+        }
+    }
+
+
+    // (4) FRUCD tire
+    for (auto it = table_frucd_tire.cbegin(); it != table_frucd_tire.cend() ; )
+    {
+        if (std::regex_match(it->first.c_str(),m,re)) {
+            it = table_frucd_tire.erase(it++);
+        } else {
+            ++it;
+        }
+    }
+
+
+    // (4) Track
     for (auto it = table_track.cbegin(); it != table_track.cend() ; )
     {
         if (std::regex_match(it->first.c_str(),m,re)) {
@@ -879,7 +1388,7 @@ void delete_variable(const char* c_variable_name)
     }
 
 
-    // (4) Scalar
+    // (5) Scalar
     for (auto it = table_scalar.cbegin(); it != table_scalar.cend() ; )
     {
         if (std::regex_match(it->first.c_str(),m,re)) {
@@ -890,7 +1399,7 @@ void delete_variable(const char* c_variable_name)
     }
 
 
-    // (5) Vector
+    // (6) Vector
     for (auto it = table_vector.cbegin(); it != table_vector.cend() ; )
     {
         if (std::regex_match(it->first.c_str(),m,re)) {
@@ -913,6 +1422,22 @@ void vehicle_set_parameter(const char* c_vehicle_name, const char* parameter, co
     {
         table_f1_3dof.at(vehicle_name).set_parameter(parameter, value);
     }
+    else if ( table_fsae_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_3dof.at(vehicle_name).set_parameter(parameter,value);
+    }
+    else if ( table_fsae_electric_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_electric_3dof.at(vehicle_name).set_parameter(parameter,value);
+    }
+    else if ( table_fsae_pacejka_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_pacejka_3dof.at(vehicle_name).set_parameter(parameter,value);
+    }
+    else if ( table_fsae_pacejka_simple_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_pacejka_simple_3dof.at(vehicle_name).set_parameter(parameter,value);
+    }
  }
  CATCH()
 }
@@ -926,6 +1451,22 @@ void vehicle_declare_new_constant_parameter(const char* c_vehicle_name, const ch
     if ( table_f1_3dof.count(vehicle_name) != 0 )
     {
         table_f1_3dof.at(vehicle_name).add_parameter(std::string(parameter_path), std::string(parameter_alias), parameter_value);
+    }
+    else if ( table_fsae_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_3dof.at(vehicle_name).add_parameter(std::string(parameter_path),std::string(parameter_alias),parameter_value);
+    }
+    else if ( table_fsae_electric_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_electric_3dof.at(vehicle_name).add_parameter(std::string(parameter_path),std::string(parameter_alias),parameter_value);
+    }
+    else if ( table_fsae_pacejka_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_pacejka_3dof.at(vehicle_name).add_parameter(std::string(parameter_path),std::string(parameter_alias),parameter_value);
+    }
+    else if ( table_fsae_pacejka_simple_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_pacejka_simple_3dof.at(vehicle_name).add_parameter(std::string(parameter_path),std::string(parameter_alias),parameter_value);
     }
     else if ( table_kart_6dof.count(vehicle_name) != 0)
     {
@@ -972,6 +1513,22 @@ void vehicle_declare_new_variable_parameter(const char* c_vehicle_name, const ch
     if ( table_f1_3dof.count(vehicle_name) != 0 )
     {
         table_f1_3dof.at(vehicle_name).add_parameter(parameter_path, parameter_aliases, parameter_values, mesh);
+    }
+    else if ( table_fsae_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_3dof.at(vehicle_name).add_parameter(parameter_path,parameter_aliases,parameter_values,mesh);
+    }
+    else if ( table_fsae_electric_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_electric_3dof.at(vehicle_name).add_parameter(parameter_path,parameter_aliases,parameter_values,mesh);
+    }
+    else if ( table_fsae_pacejka_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_pacejka_3dof.at(vehicle_name).add_parameter(parameter_path,parameter_aliases,parameter_values,mesh);
+    }
+    else if ( table_fsae_pacejka_simple_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_pacejka_simple_3dof.at(vehicle_name).add_parameter(parameter_path,parameter_aliases,parameter_values,mesh);
     }
     else if ( table_kart_6dof.count(vehicle_name) != 0)
     {
@@ -1057,6 +1614,58 @@ void propagate_vehicle(double* q, double* u, const char* c_vehicle_name, const c
             compute_propagation(table_f1_3dof.at(vehicle_name).cartesian_ad, q, u, s, ds, u_next, options);
         }
     }
+    else if ( table_fsae_3dof.count(vehicle_name) != 0 )
+    {
+        if ( use_circuit )
+        {
+            table_fsae_3dof.at(vehicle_name).curvilinear_ad.change_track(table_track.at(track_name));
+            table_fsae_3dof.at(vehicle_name).curvilinear_scalar.change_track(table_track.at(track_name));
+            compute_propagation(table_fsae_3dof.at(vehicle_name).curvilinear_ad,q,u,s,ds,u_next,options);
+        }
+        else
+        {
+            compute_propagation(table_fsae_3dof.at(vehicle_name).cartesian_ad,q,u,s,ds,u_next,options);
+        }
+    }
+    else if ( table_fsae_electric_3dof.count(vehicle_name) != 0 )
+    {
+        if ( use_circuit )
+        {
+            table_fsae_electric_3dof.at(vehicle_name).curvilinear_ad.change_track(table_track.at(track_name));
+            table_fsae_electric_3dof.at(vehicle_name).curvilinear_scalar.change_track(table_track.at(track_name));
+            compute_propagation(table_fsae_electric_3dof.at(vehicle_name).curvilinear_ad,q,u,s,ds,u_next,options);
+        }
+        else
+        {
+            compute_propagation(table_fsae_electric_3dof.at(vehicle_name).cartesian_ad,q,u,s,ds,u_next,options);
+        }
+    }
+    else if ( table_fsae_pacejka_3dof.count(vehicle_name) != 0 )
+    {
+        if ( use_circuit )
+        {
+            table_fsae_pacejka_3dof.at(vehicle_name).curvilinear_ad.change_track(table_track.at(track_name));
+            table_fsae_pacejka_3dof.at(vehicle_name).curvilinear_scalar.change_track(table_track.at(track_name));
+            compute_propagation(table_fsae_pacejka_3dof.at(vehicle_name).curvilinear_ad,q,u,s,ds,u_next,options);
+        }
+        else
+        {
+            compute_propagation(table_fsae_pacejka_3dof.at(vehicle_name).cartesian_ad,q,u,s,ds,u_next,options);
+        }
+    }
+    else if ( table_fsae_pacejka_simple_3dof.count(vehicle_name) != 0 )
+    {
+        if ( use_circuit )
+        {
+            table_fsae_pacejka_simple_3dof.at(vehicle_name).curvilinear_ad.change_track(table_track.at(track_name));
+            table_fsae_pacejka_simple_3dof.at(vehicle_name).curvilinear_scalar.change_track(table_track.at(track_name));
+            compute_propagation(table_fsae_pacejka_simple_3dof.at(vehicle_name).curvilinear_ad,q,u,s,ds,u_next,options);
+        }
+        else
+        {
+            compute_propagation(table_fsae_pacejka_simple_3dof.at(vehicle_name).cartesian_ad,q,u,s,ds,u_next,options);
+        }
+    }
  }
  CATCH()
 }
@@ -1087,6 +1696,22 @@ void steady_state(double*inputs, double* controls, const char* c_vehicle_name, d
     else if ( table_f1_3dof.count(vehicle_name) != 0 )
     {
         compute_steady_state(table_f1_3dof.at(vehicle_name).cartesian_ad, inputs, controls, v, ax, ay);
+    }
+    else if ( table_fsae_3dof.count(vehicle_name) != 0 )
+    {
+        compute_steady_state(table_fsae_3dof.at(vehicle_name).cartesian_ad,inputs,controls,v,ax,ay);
+    }
+    else if ( table_fsae_electric_3dof.count(vehicle_name) != 0 )
+    {
+        compute_steady_state(table_fsae_electric_3dof.at(vehicle_name).cartesian_ad,inputs,controls,v,ax,ay);
+    }
+    else if ( table_fsae_pacejka_3dof.count(vehicle_name) != 0 )
+    {
+        compute_steady_state(table_fsae_pacejka_3dof.at(vehicle_name).cartesian_ad,inputs,controls,v,ax,ay);
+    }
+    else if ( table_fsae_pacejka_simple_3dof.count(vehicle_name) != 0 )
+    {
+        compute_steady_state(table_fsae_pacejka_simple_3dof.at(vehicle_name).cartesian_ad,inputs,controls,v,ax,ay);
     }
  }
  CATCH()
@@ -1120,6 +1745,22 @@ void gg_diagram(double* ay, double* ax_max, double* ax_min, const char* c_vehicl
     else if ( table_f1_3dof.count(vehicle_name) != 0 )
     {
         compute_gg_diagram(table_f1_3dof.at(vehicle_name).cartesian_ad, ay, ax_max, ax_min, v, n_points);
+    }
+    else if ( table_fsae_3dof.count(vehicle_name) != 0 )
+    {
+        compute_gg_diagram(table_fsae_3dof.at(vehicle_name).cartesian_ad,ay,ax_max,ax_min,v,n_points);
+    }
+    else if ( table_fsae_electric_3dof.count(vehicle_name) != 0 )
+    {
+        compute_gg_diagram(table_fsae_electric_3dof.at(vehicle_name).cartesian_ad,ay,ax_max,ax_min,v,n_points);
+    }
+    else if ( table_fsae_pacejka_3dof.count(vehicle_name) != 0 )
+    {
+        compute_gg_diagram(table_fsae_pacejka_3dof.at(vehicle_name).cartesian_ad,ay,ax_max,ax_min,v,n_points);
+    }
+    else if ( table_fsae_pacejka_simple_3dof.count(vehicle_name) != 0 )
+    {
+        compute_gg_diagram(table_fsae_pacejka_simple_3dof.at(vehicle_name).cartesian_ad,ay,ax_max,ax_min,v,n_points);
     }
  }
  CATCH()
@@ -1411,7 +2052,11 @@ struct Optimal_laptime_configuration
  private:
     static bool get_default_is_direct()
     {
-        if constexpr (std::is_same_v<vehicle_t,limebeer2014f1_all>)
+        if constexpr (std::is_same_v<vehicle_t,limebeer2014f1_all> ||
+                      std::is_same_v<vehicle_t,fsae2026_all> ||
+                      std::is_same_v<vehicle_t,fsae2026_electric_all> ||
+                      std::is_same_v<vehicle_t,fsae2026_pacejka_all> ||
+                      std::is_same_v<vehicle_t,fsae2026_pacejka_simple_all>)
             return true;
         else if constexpr (std::is_same_v<vehicle_t,lot2016kart_all>)
             return false;
@@ -1421,7 +2066,11 @@ struct Optimal_laptime_configuration
 
     static std::array<std::string,vehicle_t::vehicle_ad_curvilinear::number_of_controls> get_default_control_types()
     {
-        if constexpr (std::is_same_v<vehicle_t,limebeer2014f1_all>)
+        if constexpr (std::is_same_v<vehicle_t,limebeer2014f1_all> ||
+                      std::is_same_v<vehicle_t,fsae2026_all> ||
+                      std::is_same_v<vehicle_t,fsae2026_electric_all> ||
+                      std::is_same_v<vehicle_t,fsae2026_pacejka_all> ||
+                      std::is_same_v<vehicle_t,fsae2026_pacejka_simple_all>)
             return {"full-mesh", "dont optimize", "full-mesh", "dont optimize"};
         else if constexpr (std::is_same_v<vehicle_t,lot2016kart_all>)
             return {"full-mesh", "full-mesh"};
@@ -1431,7 +2080,11 @@ struct Optimal_laptime_configuration
 
     static std::array<scalar,vehicle_t::vehicle_ad_curvilinear::number_of_controls> get_default_dissipations()
     {
-        if constexpr (std::is_same_v<vehicle_t,limebeer2014f1_all>)
+        if constexpr (std::is_same_v<vehicle_t,limebeer2014f1_all> ||
+                      std::is_same_v<vehicle_t,fsae2026_all> ||
+                      std::is_same_v<vehicle_t,fsae2026_electric_all> ||
+                      std::is_same_v<vehicle_t,fsae2026_pacejka_all> ||
+                      std::is_same_v<vehicle_t,fsae2026_pacejka_simple_all>)
             return {50.0, 20.0*8.0e-4, 20.0*8.0e-4, 0.0};
         else if constexpr (std::is_same_v<vehicle_t,lot2016kart_all>)
             return {1.0e-2, 200*200*1.0e-10};
@@ -1616,28 +2269,31 @@ void compute_optimal_laptime(vehicle_t& vehicle, Track_by_polynomial& track, con
     }
 
     // (6.2.3) Save integral quantities
-    for (const auto& variable_name : v_integral_quantities_to_save) {
-        // (6.2.3.1) Get the variable
-        std::string integral_quantity_name = variable_name;
-        integral_quantity_name.erase(0, std::string("integral_quantities.").length());
+    if constexpr (vehicle_t::vehicle_ad_curvilinear::Integral_quantities::N_INTEGRAL_QUANTITIES > 0)
+    {
+        for (const auto& variable_name : v_integral_quantities_to_save) {
+            // (6.2.3.1) Get the variable
+            std::string integral_quantity_name = variable_name;
+            integral_quantity_name.erase(0, std::string("integral_quantities.").length());
 
-        // (6.2.3.2) Look for the variable in the list
-        const auto it = std::find(vehicle_t::vehicle_ad_curvilinear::Integral_quantities::names.cbegin(),
-                                  vehicle_t::vehicle_ad_curvilinear::Integral_quantities::names.cend(),
-                                  integral_quantity_name);
+            // (6.2.3.2) Look for the variable in the list
+            const auto it = std::find(vehicle_t::vehicle_ad_curvilinear::Integral_quantities::names.cbegin(),
+                                      vehicle_t::vehicle_ad_curvilinear::Integral_quantities::names.cend(),
+                                      integral_quantity_name);
 
-        if (it == vehicle_t::vehicle_ad_curvilinear::Integral_quantities::names.cend())
-        {
-            std::ostringstream s_out;
-            s_out << "[ERROR] Requested integral constraint was not found." << std::endl;
-            s_out << "[ERROR] Available options are: " << vehicle_t::vehicle_ad_curvilinear::Integral_quantities::names;
-            throw fastest_lap_exception(s_out.str());
+            if (it == vehicle_t::vehicle_ad_curvilinear::Integral_quantities::names.cend())
+            {
+                std::ostringstream s_out;
+                s_out << "[ERROR] Requested integral constraint was not found." << std::endl;
+                s_out << "[ERROR] Available options are: " << vehicle_t::vehicle_ad_curvilinear::Integral_quantities::names;
+                throw fastest_lap_exception(s_out.str());
+            }
+
+            // (6.2.3.3) Fill the integral constraint information
+            const size_t index = std::distance(vehicle_t::vehicle_ad_curvilinear::Integral_quantities::names.cbegin(),it);
+
+            table_scalar.insert({conf.output_variables_prefix + variable_name, opt_laptime.integral_quantities[index].value});
         }
-
-        // (6.2.3.3) Fill the integral constraint information
-        const size_t index = std::distance(vehicle_t::vehicle_ad_curvilinear::Integral_quantities::names.cbegin(),it);
-
-        table_scalar.insert({conf.output_variables_prefix + variable_name, opt_laptime.integral_quantities[index].value});
     }
 
     // (6.2.4) Save vector variables
@@ -1730,6 +2386,26 @@ void optimal_laptime(const char* c_vehicle_name, const char* c_track_name, const
         compute_optimal_laptime(table_f1_3dof.at(vehicle_name), table_track.at(track_name),
                                 n_points, s, options);
     }
+    else if ( table_fsae_3dof.count(vehicle_name) != 0 )
+    {
+        compute_optimal_laptime(table_fsae_3dof.at(vehicle_name),table_track.at(track_name),
+                                n_points,s,options);
+    }
+    else if ( table_fsae_electric_3dof.count(vehicle_name) != 0 )
+    {
+        compute_optimal_laptime(table_fsae_electric_3dof.at(vehicle_name),table_track.at(track_name),
+                                n_points,s,options);
+    }
+    else if ( table_fsae_pacejka_3dof.count(vehicle_name) != 0 )
+    {
+        compute_optimal_laptime(table_fsae_pacejka_3dof.at(vehicle_name),table_track.at(track_name),
+                                n_points,s,options);
+    }
+    else if ( table_fsae_pacejka_simple_3dof.count(vehicle_name) != 0 )
+    {
+        compute_optimal_laptime(table_fsae_pacejka_simple_3dof.at(vehicle_name),table_track.at(track_name),
+                                n_points,s,options);
+    }
  }
  CATCH()
 }
@@ -1751,6 +2427,26 @@ void vehicle_change_track(const char* c_vehicle_name, const char* c_track_name)
     {
         table_f1_3dof.at(vehicle_name).get_curvilinear_ad_car().change_track(table_track.at(track_name));
         table_f1_3dof.at(vehicle_name).get_curvilinear_scalar_car().change_track(table_track.at(track_name));
+    }
+    else if ( table_fsae_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_3dof.at(vehicle_name).get_curvilinear_ad_car().change_track(table_track.at(track_name));
+        table_fsae_3dof.at(vehicle_name).get_curvilinear_scalar_car().change_track(table_track.at(track_name));
+    }
+    else if ( table_fsae_electric_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_electric_3dof.at(vehicle_name).get_curvilinear_ad_car().change_track(table_track.at(track_name));
+        table_fsae_electric_3dof.at(vehicle_name).get_curvilinear_scalar_car().change_track(table_track.at(track_name));
+    }
+    else if ( table_fsae_pacejka_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_pacejka_3dof.at(vehicle_name).get_curvilinear_ad_car().change_track(table_track.at(track_name));
+        table_fsae_pacejka_3dof.at(vehicle_name).get_curvilinear_scalar_car().change_track(table_track.at(track_name));
+    }
+    else if ( table_fsae_pacejka_simple_3dof.count(vehicle_name) != 0 )
+    {
+        table_fsae_pacejka_simple_3dof.at(vehicle_name).get_curvilinear_ad_car().change_track(table_track.at(track_name));
+        table_fsae_pacejka_simple_3dof.at(vehicle_name).get_curvilinear_scalar_car().change_track(table_track.at(track_name));
     }
  }
  CATCH()

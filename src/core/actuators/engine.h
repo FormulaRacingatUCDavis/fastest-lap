@@ -12,6 +12,9 @@ class Engine
 {
  public:
     using Timeseries_type = Timeseries_t;
+    static constexpr bool supports_regeneration = false;
+    static constexpr const char* parameter_path = "engine/";
+    static constexpr const char* energy_integral_name = "engine-energy";
     //! A default constructor if no engine is needed
     Engine() = default;
 

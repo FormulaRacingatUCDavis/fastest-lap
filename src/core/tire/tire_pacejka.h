@@ -216,6 +216,15 @@ struct Pacejka_standard_model
     template<typename Timeseries_t>
     Timeseries_t force_combined_lateral_magic(Timeseries_t kappa, Timeseries_t lambda, Timeseries_t Fz) const;
 
+    //! Slip ratio at the pure-longitudinal force peak. If Cx <= 1 the Magic
+    //! Formula is monotone, so use the reduction domain boundary instead.
+    template<typename Timeseries_t>
+    Timeseries_t maximum_kappa(Timeseries_t Fz) const;
+
+    //! Tangent of the slip angle at the pure-lateral force peak.
+    template<typename Timeseries_t>
+    Timeseries_t maximum_lambda(Timeseries_t Fz) const;
+
     DECLARE_PARAMS(
         { "nominal-vertical-load", _Fz0 },
         { "lambdaFz0", _lambdaFz0 },
@@ -246,6 +255,8 @@ struct Pacejka_standard_model
     scalar _Fz0 = 0.0;        //! [c] Nominal load [N]
     scalar _lambdaFz0 = 0.0;  //! [c] Nominal load scaling
     scalar _Fz0prime = 0.0;   //! [c] Fz0.lambdaFz0
+    scalar _x_peak_longitudinal = 0.0; //! Bx*kappa at the force peak; zero means monotone
+    scalar _x_peak_lateral = 0.0;      //! By*lambda at the force peak; zero means monotone
 
     // Pure slip longitudinal parameters
     scalar _pCx1 = 0.0;    //! [c] Cx

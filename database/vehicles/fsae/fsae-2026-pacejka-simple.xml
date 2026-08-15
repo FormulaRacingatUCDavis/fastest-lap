@@ -1,0 +1,85 @@
+<!--
+  Formula SAE combustion vehicle using the reduced fastest-lap simple Pacejka tire.
+
+  Generated from Hoosier_R20_16(18)x75(60)-10x8(7).mat at 70 kPa,
+  0 deg inclination and 200 to 1800 N vertical load. The source FRUCD forces
+  include the configured 0.7 longitudinal/lateral correction factors.
+-->
+<vehicle type="fsae-pacejka-simple-3dof">
+    <front-axle model="axle-car">
+        <track units="m">1.250</track>
+        <inertia units="kg.m2">0.60</inertia>
+        <smooth_throttle_coeff>1.0e-5</smooth_throttle_coeff>
+        <brakes><max_torque units="N.m">900.0</max_torque></brakes>
+    </front-axle>
+
+    <rear-axle model="axle-car">
+        <track units="m">1.210</track>
+        <inertia units="kg.m2">0.60</inertia>
+        <smooth_throttle_coeff>1.0e-5</smooth_throttle_coeff>
+        <differential_stiffness units="N.m.s/rad">50.0</differential_stiffness>
+        <brakes><max_torque units="N.m">900.0</max_torque></brakes>
+        <engine><maximum-power units="kW">59.7</maximum-power></engine>
+        <boost><maximum-power units="kW">0.0</maximum-power></boost>
+    </rear-axle>
+
+    <chassis>
+        <mass units="kg">280.0</mass>
+        <inertia>
+            <Ixx>45.0</Ixx> <Ixy>0.0</Ixy> <Ixz>0.0</Ixz>
+            <Iyx>0.0</Iyx> <Iyy>80.0</Iyy> <Iyz>0.0</Iyz>
+            <Izx>0.0</Izx> <Izy>0.0</Izy> <Izz>100.0</Izz>
+        </inertia>
+        <aerodynamics>
+            <rho units="kg/m3">1.225</rho>
+            <area units="m2">0.90</area>
+            <cd>1.00</cd>
+            <cl>1.50</cl>
+        </aerodynamics>
+        <com units="m"><x>0.0</x> <y>0.0</y> <z>-0.285</z></com>
+        <front_axle units="m"><x>0.924</x> <y>0.0</y> <z>-0.2032</z></front_axle>
+        <rear_axle units="m"><x>-0.756</x> <y>0.0</y> <z>-0.2032</z></rear_axle>
+        <pressure_center units="m"><x>0.0</x> <y>0.0</y> <z>-0.250</z></pressure_center>
+        <brake_bias>0.60</brake_bias>
+        <roll_balance_coefficient>0.55</roll_balance_coefficient>
+        <Fz_max_ref2>1.0</Fz_max_ref2>
+    </chassis>
+
+    <front-tire model="tire-pacejka-simple" type="normal">
+        <radius>0.20319999999999999</radius>
+        <radial-stiffness>100000</radial-stiffness>
+        <radial-damping>0</radial-damping>
+        <Fz-max-ref2>1</Fz-max-ref2>
+        <reference-load-1>200</reference-load-1>
+        <reference-load-2>1800</reference-load-2>
+        <mu-x-max-1>1.6588807392971627</mu-x-max-1>
+        <mu-x-max-2>1.5359334750849203</mu-x-max-2>
+        <mu-y-max-1>1.7972813638863265</mu-y-max-1>
+        <mu-y-max-2>1.6434619968297142</mu-y-max-2>
+        <kappa-max-1>0.10341181961481576</kappa-max-1>
+        <kappa-max-2>0.15022463398193153</kappa-max-2>
+        <lambda-max-1>6.3832098816392238</lambda-max-1>
+        <lambda-max-2>9.9630324624183206</lambda-max-2>
+        <Qx>1.4080213945974149</Qx>
+        <Qy>1.3643173382099913</Qy>
+    </front-tire>
+
+    <rear-tire model="tire-pacejka-simple" type="normal">
+        <radius>0.20319999999999999</radius>
+        <radial-stiffness>100000</radial-stiffness>
+        <radial-damping>0</radial-damping>
+        <Fz-max-ref2>1</Fz-max-ref2>
+        <reference-load-1>200</reference-load-1>
+        <reference-load-2>1800</reference-load-2>
+        <mu-x-max-1>1.6588807392971627</mu-x-max-1>
+        <mu-x-max-2>1.5359334750849203</mu-x-max-2>
+        <mu-y-max-1>1.7972813638863265</mu-y-max-1>
+        <mu-y-max-2>1.6434619968297142</mu-y-max-2>
+        <kappa-max-1>0.10341181961481576</kappa-max-1>
+        <kappa-max-2>0.15022463398193153</kappa-max-2>
+        <lambda-max-1>6.3832098816392238</lambda-max-1>
+        <lambda-max-2>9.9630324624183206</lambda-max-2>
+        <Qx>1.4080213945974149</Qx>
+        <Qy>1.3643173382099913</Qy>
+    </rear-tire>
+</vehicle>
